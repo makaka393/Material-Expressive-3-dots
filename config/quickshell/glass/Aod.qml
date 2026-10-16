@@ -75,10 +75,6 @@ PanelWindow {
         function onAodPingChanged() { pingDelay.restart(); }
     }
     Timer { id: pingDelay; interval: 450; onTriggered: win.show(false) }
-    Connections {
-        target: Config
-        function onAodWakePingChanged() { win.hide(); }
-    }
 
     // ── затемнение: только фон, без блюра
     Rectangle {

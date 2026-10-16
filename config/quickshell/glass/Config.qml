@@ -34,7 +34,6 @@ Singleton {
     property alias aodHideWindows: cfg.aodHideWindows // на время AOD окна становятся полностью прозрачными
     property alias nightAuto: cfg.nightAuto           // защита глаз сама включается на закате и выключается на рассвете
     property alias lockOnStart: cfg.lockOnStart       // запирать экран при входе в сессию (вместо экрана входа) — см. Locker
-    property int aodWakePing: 0                       // разбудить AOD (важное событие, например «игра найдена»)
     property int aodPing: 0                           // «Показать сейчас» из настроек
 
     property bool settingsOpen: false
