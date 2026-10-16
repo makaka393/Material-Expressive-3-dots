@@ -19,25 +19,10 @@ Item {
 
     HoverHandler { id: hover }
 
-    Rectangle {
-        id: bg
+    GlassSurface {
         anchors.fill: parent
         radius: root.radius
-        color: root.strong ? Theme.glassStrong : Theme.glass
-        border.width: 1
-        border.color: Theme.glassBorder
-        Behavior on color { ColorAnimation { duration: 350 } }
-    }
-
-    // блик сверху — даёт ощущение толщины стекла
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: 1
-        radius: Math.max(0, root.radius - 1)
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Theme.glassSheen }
-            GradientStop { position: 0.45; color: "transparent" }
-        }
+        strong: root.strong
     }
 
     Item {

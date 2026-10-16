@@ -37,8 +37,12 @@ Island {
         target: Hyprland
         function onRawEvent(ev) {
             if (ev.name !== "activelayout") return;
-            const parts = ev.data.split(",");
-            root.layout = root.code(parts[parts.length - 1]);
+            // данные: «клавиатура,раскладка» (в названии раскладки тоже бывают запятые).
+            // Виртуальные клавиатуры (wtype при вставке эмодзи и т.п.) — не наша раскладка.
+            const i = ev.data.indexOf(",");
+            const kb = ev.data.slice(0, i), name = ev.data.slice(i + 1);
+            if (i < 0 || kb.startsWith("hl-virtual-keyboard") || name === "" || name === "none" || name === "error") return;
+            root.layout = root.code(name);
         }
     }
 

@@ -171,7 +171,7 @@ def main():
 
         prev = pos
         # быстро опрашиваем, только когда мышь двигается — в покое почти не тратим CPU
-        time.sleep(1 / 90 if moving or progress > 0 else 1 / 20)
+        time.sleep(1 / 90 if moving or progress > 0 else 1 / 12)
 
 
 if __name__ == "__main__":

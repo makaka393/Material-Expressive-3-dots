@@ -70,17 +70,17 @@ Singleton {
     }
 
     function describe(c) {
-        if (c === 0) return "Ясно";
-        if (c === 1) return "Почти ясно";
-        if (c === 2) return "Переменная облачность";
-        if (c === 3) return "Пасмурно";
-        if (c === 45 || c === 48) return "Туман";
-        if (c >= 51 && c <= 57) return "Морось";
-        if (c >= 61 && c <= 67) return "Дождь";
-        if (c >= 71 && c <= 77) return "Снег";
-        if (c >= 80 && c <= 82) return "Ливень";
-        if (c === 85 || c === 86) return "Снегопад";
-        if (c >= 95) return "Гроза";
+        if (c === 0) return I18n.t("Ясно", "Clear");
+        if (c === 1) return I18n.t("Почти ясно", "Mostly clear");
+        if (c === 2) return I18n.t("Переменная облачность", "Partly cloudy");
+        if (c === 3) return I18n.t("Пасмурно", "Overcast");
+        if (c === 45 || c === 48) return I18n.t("Туман", "Fog");
+        if (c >= 51 && c <= 57) return I18n.t("Морось", "Drizzle");
+        if (c >= 61 && c <= 67) return I18n.t("Дождь", "Rain");
+        if (c >= 71 && c <= 77) return I18n.t("Снег", "Snow");
+        if (c >= 80 && c <= 82) return I18n.t("Ливень", "Showers");
+        if (c === 85 || c === 86) return I18n.t("Снегопад", "Snowfall");
+        if (c >= 95) return I18n.t("Гроза", "Thunderstorm");
         return "—";
     }
 

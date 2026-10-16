@@ -24,7 +24,7 @@ is_video() { case "${1,,}" in *.mp4|*.webm|*.mkv|*.mov) return 0;; *) return 1;;
 start_video() {
   pkill -x mpvpaper 2>/dev/null || true
   # -f: в фоне, -p: пауза, когда обои закрыты окнами (экономит видеокарту)
-  mpvpaper -f -p -o "no-audio loop hwdec=auto panscan=1.0 really-quiet" ALL "$1" >/dev/null 2>&1 || true
+  mpvpaper -f -p -o "no-audio loop hwdec=auto panscan=1.0 really-quiet cache=no demuxer-max-bytes=16MiB demuxer-max-back-bytes=4MiB vd-lavc-threads=2" ALL "$1" >/dev/null 2>&1 || true
 }
 
 ensure_awww() {
@@ -46,6 +46,7 @@ fi
 WALLPAPER=""; COLOR=""
 for arg in "$@"; do
   if [[ "$arg" =~ ^#?[0-9a-fA-F]{6}$ ]]; then COLOR="#${arg#\#}"
+  elif [ "$arg" = mono ]; then COLOR=mono
   else WALLPAPER=$(realpath "$arg"); [ -f "$WALLPAPER" ] || die "Файл не найден: $arg"; fi
 done
 
@@ -85,13 +86,34 @@ if [ -n "$WALLPAPER" ]; then
 fi
 
 # ---- палитра
-ARGS=(-m "$MODE" -t "$SCHEME" --contrast "$CONTRAST" -q)
+# белый/серый/чёрный цвет и «mono» → чёрно-белая тема (иначе matugen делает из белого голубой)
+MONO=0
+if [ "$COLOR" = mono ]; then MONO=1
+elif [ -n "$COLOR" ]; then
+  R=$((16#${COLOR:1:2})); G=$((16#${COLOR:3:2})); B=$((16#${COLOR:5:2}))
+  MX=$R; [ $G -gt $MX ] && MX=$G; [ $B -gt $MX ] && MX=$B
+  MN=$R; [ $G -lt $MN ] && MN=$G; [ $B -lt $MN ] && MN=$B
+  [ $((MX - MN)) -le 24 ] && MONO=1
+fi
+MGCFG=()
+if [ $MONO = 1 ] || [ "$SCHEME" = scheme-monochrome ]; then
+  SCHEME=scheme-monochrome
+  # у kitty в конфиге matugen своя схема (tonal spot) — для ч/б убираем, иначе терминал станет цветным
+  MGT=$(mktemp); sed '/^type *= *"Scheme/d' "$HOME/.config/matugen/config.toml" > "$MGT"; MGCFG=(-c "$MGT")
+fi
+ARGS=(-m "$MODE" -t "$SCHEME" --contrast "$CONTRAST" -q "${MGCFG[@]}")
 if [ -n "$COLOR" ]; then
-  matugen color hex "$COLOR" "${ARGS[@]}"
+  if [ "$COLOR" = mono ]; then matugen color hex "#808080" "${ARGS[@]}"; else matugen color hex "$COLOR" "${ARGS[@]}"; fi
   echo "$COLOR" > "$STATE/source"
 elif [ -n "$WALLPAPER" ]; then
   matugen image "$SRC" --source-color-index 0 "${ARGS[@]}"
   rm -f "$STATE/source"
+fi
+
+# «Точный цвет» (настройки): primary = ровно выбранный цвет, а не пастельный вариант Material
+if [ -n "$COLOR" ] && [ "$COLOR" != mono ] && [ "${MONO:-0}" = 0 ] && python3 -c \
+  'import json,os,sys; sys.exit(0 if json.load(open(os.path.expanduser("~/.config/glass/settings.json"))).get("exactColor") else 1)' 2>/dev/null; then
+  python3 "$HOME/.config/hypr/scripts/exact-accent.py" "$COLOR" || true
 fi
 
 # ---- применить
@@ -99,6 +121,8 @@ timeout 2 gsettings set org.gnome.desktop.interface color-scheme "prefer-$MODE" 
 hyprctl reload >/dev/null
 pkill -SIGUSR1 kitty 2>/dev/null || true
 pkill -USR2 -x btop 2>/dev/null || true   # btop перечитывает тему без перезапуска
+# медленное (KDE, папки Papirus, экран входа) — в фоне: бар и окна перекрашиваются сразу
+(
 # KDE/Qt-приложения (Dolphin и др.): цветовая схема + иконки под тему
 if command -v plasma-apply-colorscheme >/dev/null && [ -f "$HOME/.local/share/color-schemes/Matugen.colors" ]; then
   CS="$HOME/.local/share/color-schemes"
@@ -148,7 +172,8 @@ if [ -d "$SDDM_USER" ] && [ -w "$SDDM_USER" ] && [ -f "$STATE/sddm-colors.conf" 
   mv -f "$SDDM_USER/theme.conf.user.new" "$SDDM_USER/theme.conf.user"
   chmod 644 "$SDDM_USER/theme.conf.user" 2>/dev/null || true
 fi
-
+) >/dev/null 2>&1 &
+disown
 # Quickshell перечитает ~/.cache/matugen/colors.json сам
 
 timeout 2 notify-send -a changetheme -i "${SRC:-preferences-desktop-theme}" \

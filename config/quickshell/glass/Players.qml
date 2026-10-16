@@ -10,16 +10,19 @@ Singleton {
     id: root
 
     property var active: null
+    // «пустые» плееры (KDE Connect с телефона без трека и т.п.) не считаем:
+    // они пишут Playing, но названия нет — остров из-за них показывал пустоту
+    function real(p) { return p && (p.trackTitle ?? "") !== ""; }
     function pick() {
         const list = Mpris.players.values;
         let p = null;
         for (let i = 0; i < list.length; i++)
-            if (list[i].isPlaying) { p = list[i]; break; }
-        if (!p && active && list.indexOf(active) >= 0) p = active;
-        if (!p && list.length > 0) p = list[0];
+            if (list[i].isPlaying && real(list[i])) { p = list[i]; break; }
+        if (!p && real(active) && list.indexOf(active) >= 0) p = active;
+        if (!p) for (let i = 0; i < list.length; i++) if (real(list[i])) { p = list[i]; break; }
         if (p !== active) active = p;
     }
-    Timer { interval: 500; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.pick() }
+    Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: root.pick() }
 
     // ── обложка
     readonly property string artUrl: active?.trackArtUrl ?? ""

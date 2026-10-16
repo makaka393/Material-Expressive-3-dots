@@ -26,15 +26,19 @@ PanelWindow {
     mask: Region { item: card }
 
     ListModel { id: walls }
+    // закрыли — отпускаем превью обоев и кэш цветов (при открытии всё пересканируется)
+    onVisibleChanged: if (!visible) { walls.clear(); content.palettes = []; win.palCache = ({}); }
 
     IpcHandler {
         target: "picker"
         function toggle(): void { win.open = !win.open; }
-        function show(): void { win.open = true; }
+        // не «show»: qs ipc принимает это слово за свою подкоманду и ничего не вызывает
+        function open(): void { win.open = true; }
+        function close(): void { win.open = false; }
         function hide(): void { win.open = false; }
     }
 
-    onOpenChanged: if (open) { scan.running = true; readEnv.running = true; focusTimer.restart(); win.requestPalettes(); }
+    onOpenChanged: if (!open) content.customOpen = false; else if (open) { scan.running = true; readEnv.running = true; focusTimer.restart(); win.requestPalettes(); }
     Timer { id: focusTimer; interval: 60; onTriggered: content.focusList() }
 
     HyprlandFocusGrab {
@@ -99,8 +103,8 @@ PanelWindow {
     Connections {
         target: content
         function onSelThumbChanged() { win.requestPalettes(); }
-        function onSchemeChanged() { win.requestPalettes(); }
-        function onModeChanged() { win.requestPalettes(); }
+        function onSchemeChanged() { win.requestPalettes(); if (content.customPal) content.requestCustom(content.customPal.src); }
+        function onModeChanged() { win.requestPalettes(); if (content.customPal) content.requestCustom(content.customPal.src); }
     }
     function requestPalettes() {
         if (!win.open || content.selThumb === "") return;
@@ -136,6 +140,31 @@ PanelWindow {
         }
     }
 
+    // свой цвет из палитры → его палитра для свотча
+    Connections {
+        target: content
+        function onRequestCustom(hex) { customProc.pending = hex; if (!customProc.running) win.startCustom(); }
+    }
+    function startCustom() {
+        if (customProc.pending === "") return;
+        customProc.hex = customProc.pending;
+        customProc.pending = "";
+        customProc.command = ["python3", win.palScript, customProc.hex, content.scheme, content.mode, win.contrast];
+        customProc.running = true;
+    }
+    Process {
+        id: customProc
+        property string hex: ""
+        property string pending: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const p = text.trim().split("\t");
+                if (p[0] === "P" && p.length >= 6) content.customPal = { src: p[1], p: p[2], s: p[3], t: p[4], pc: p[5] };
+                if (customProc.pending !== "") Qt.callLater(win.startCustom);
+            }
+        }
+    }
+
     Process {
         id: applyProc
         onRunningChanged: content.busy = running
@@ -160,20 +189,7 @@ PanelWindow {
         Behavior on opacity { Anim { kind: "effects"; duration: win.open ? 260 : 160 } }
         Behavior on scale { Anim { kind: "spatial" } }
 
-        Rectangle {
-            anchors.fill: parent
-            radius: 32
-            color: Theme.glassStrong
-            border.width: 1
-            border.color: Theme.glassBorder
-        }
-        Rectangle {
-            anchors.fill: parent; anchors.margins: 1; radius: 31
-            gradient: Gradient {
-                GradientStop { position: 0; color: Theme.glassSheen }
-                GradientStop { position: 0.3; color: "transparent" }
-            }
-        }
+        GlassSurface { anchors.fill: parent; radius: 32; strong: true; sheenEnd: 0.3 }
 
         PickerCard {
             id: content

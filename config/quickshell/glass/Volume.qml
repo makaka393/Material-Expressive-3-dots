@@ -33,8 +33,9 @@ Island {
     Timer { id: menuOpen; interval: 220; onTriggered: if (root.hovered) root.menu = true }
     Timer { id: menuClose; interval: 420; onTriggered: if (!root.hovered) root.menu = false }
     onHoveredChanged: hovered ? menuOpen.restart() : menuClose.restart()
-    onVolChanged: if (armed && !hovered) { osd = true; osdTimer.restart(); }
-    onMutedChanged: if (armed && !hovered) { osd = true; osdTimer.restart(); }
+    // громкость колёсиком/клавишами — показываем в центральном острове (Dynamic Island)
+    onVolChanged: if (armed && !hovered) Activity.volume(root.vol, root.muted)
+    onMutedChanged: if (armed && !hovered) Activity.volume(root.vol, root.muted)
 
     // громкость меняем через wpctl — так же, как бинды Hyprland
     property int lastSent: -1
@@ -53,8 +54,8 @@ Island {
     function prettyName(n) {
         let s = n.nickname || n.description || n.name || "?";
         s = s.replace(/ (Analog|Digital) Stereo/, "")
-             .replace(/Family 17h \(Models 00h-0fh\) HD Audio Controller/, "Колонки (разъём)")
-             .replace(/TU106 High Definition Audio Controller/, "Монитор")
+             .replace(/Family 17h \(Models 00h-0fh\) HD Audio Controller/, I18n.t("Колонки (разъём)", "Speakers (jack)"))
+             .replace(/TU106 High Definition Audio Controller/, I18n.t("Монитор", "Monitor"))
              .replace(/ Gaming Headset/, "");
         return s;
     }
@@ -141,7 +142,7 @@ Island {
             anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
             width: 36
             horizontalAlignment: Text.AlignRight
-            text: root.muted ? "выкл" : Math.round(root.vol * 100) + "%"
+            text: root.muted ? I18n.t("выкл", "off") : Math.round(root.vol * 100) + "%"
             size: 13
             weight: 650
             elide: Text.ElideNone

@@ -9,12 +9,14 @@ Singleton {
     id: root
 
     // ───────── настройки ─────────
-    readonly property string city: "София"
+    readonly property string city: I18n.t("София", "Sofia")
     readonly property real lat: 42.6977
     readonly property real lon: 23.3219
     readonly property int workspaceCount: 5
     readonly property bool mediaPeek: true      // при смене трека остров на 2.5с раскрывается в плеер
-    readonly property real glassOpacity: 0.34   // прозрачность стекла (0 — только blur, 1 — сплошной фон)
+    // оформление и прозрачность — из окна настроек (Config → ~/.config/glass/settings.json)
+    readonly property bool m3: Config.style === "m3"
+    readonly property real glassOpacity: Math.max(0.02, Config.glassOpacity)   // 0% — только блюр
     readonly property string wallpaperDir: Quickshell.env("HOME") + "/Downloads/Wallpapers"   // папка с обоями для выбора
 
     // ───────── размеры ─────────
@@ -26,6 +28,12 @@ Singleton {
     // ───────── шрифты ─────────
     readonly property string font: "Google Sans Flex"
     readonly property string iconFont: "Material Symbols Rounded"
+    // Оптическая центровка (Label): расстояние от верха строки до середины прописной буквы, в em.
+    // Строка шрифта несимметрична относительно букв и цифр — без поправки текст в кнопках
+    // и пилюлях стоит на пиксель выше центра.
+    readonly property real capCenter: (fontM.ascent - capM.tightBoundingRect.height / 2) / 100
+    FontMetrics { id: fontM; font.family: root.font; font.pixelSize: 100 }
+    TextMetrics { id: capM; font: fontM.font; text: "H" }
 
     // ───────── motion: токены M3 Expressive ─────────
     readonly property var spatial: [0.38, 1.21, 0.22, 1.00, 1, 1]       // default spatial, 500ms
@@ -59,12 +67,19 @@ Singleton {
     readonly property color outline: c.outline
     readonly property color outlineVariant: c.outlineVariant
 
-    // стекло
-    readonly property color glass: Qt.alpha(surfaceLowest, glassOpacity)
-    readonly property color glassStrong: Qt.alpha(surfaceLowest, Math.min(1, glassOpacity + 0.25))
-    readonly property color glassBorder: Qt.alpha(fg, 0.10)
-    readonly property color glassSheen: Qt.rgba(1, 1, 1, 0.06)
-    readonly property color glassChip: Qt.alpha(fg, 0.08)
+    // поверхности островов: «стекло» (тёмная дымка + блюр Hyprland) или M3 (тональные поверхности)
+    readonly property real m3Opacity: Math.max(0.02, Config.m3Opacity)
+    // стекло — матовое, как плавающие панели One UI: чуть высветленная поверхность поверх сильного блюра
+    readonly property color frost: Qt.tint(surfaceHigh, Qt.rgba(1, 1, 1, 0.08))
+    readonly property color glass: m3 ? Qt.alpha(surfaceMid, m3Opacity) : Qt.alpha(frost, glassOpacity)
+    // раскрытые карточки/окна не бывают совсем прозрачными — иначе нечитаемо
+    readonly property color glassStrong: m3 ? Qt.alpha(surfaceHigh, Math.max(0.3, Math.min(1, m3Opacity + 0.25)))
+                                            : Qt.alpha(frost, Math.max(0.3, Math.min(1, glassOpacity + 0.25)))
+    readonly property color glassBorder: m3 ? Qt.alpha(fg, m3Opacity < 0.97 ? 0.07 : 0) : Qt.alpha(fg, 0.10)
+    readonly property color glassSheen: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.09)      // блик сверху
+    readonly property color glassRim: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.34)        // светлая кромка по верхнему краю
+    readonly property color glassShade: m3 ? "transparent" : Qt.rgba(0, 0, 0, 0.13)      // тень у нижнего края
+    readonly property color glassChip: m3 ? Qt.alpha(surfaceHighest, Math.max(0.35, m3Opacity)) : Qt.alpha(fg, 0.08)
 
     function css(col) {
         return "rgba(" + Math.round(col.r * 255) + "," + Math.round(col.g * 255) + ","

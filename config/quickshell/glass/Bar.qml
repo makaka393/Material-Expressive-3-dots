@@ -10,12 +10,15 @@ PanelWindow {
     anchors { top: true; left: true; right: true }
     // окно выше самого бара — чтобы острова могли раскрываться вниз.
     // Пустые места прозрачны и пропускают клики (mask).
-    implicitHeight: 320
+    // Должно вмещать самую высокую шторку: отступ + Power с 4 уведомлениями (500 + 44 + 4×66) + отступ.
+    implicitHeight: 832
     exclusiveZone: Theme.barHeight + Theme.outer + 2
     color: "transparent"
 
     WlrLayershell.namespace: "quickshell-bar"
     WlrLayershell.layer: WlrLayer.Top
+    // клавиатура бару нужна только пока вводишь пароль от Wi-Fi в шторке
+    WlrLayershell.keyboardFocus: Net.typing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     mask: Region {
         Region { item: content.leftGroup }

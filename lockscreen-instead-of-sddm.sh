@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# glass-dots — экран блокировки оболочки вместо SDDM.
+#   ./lockscreen-instead-of-sddm.sh          включить (сработает после перезагрузки)
+#   ./lockscreen-instead-of-sddm.sh --undo   вернуть SDDM
+#
+# Как это устроено: на tty1 включается автовход, оттуда запускается Hyprland, а оболочка
+# первым делом запирает экран (lockOnStart) — пароль вводится на экране блокировки с обоями.
+# Что стоит знать: сессия при этом уже запущена за замком (автозапуск приложений идёт до ввода
+# пароля), а между стартом Hyprland и замком рабочий стол виден на долю секунды.
+# Если что-то пошло не так: Ctrl+Alt+F2 → вход в консоль → ./lockscreen-instead-of-sddm.sh --undo
+set -euo pipefail
+
+ME="$(id -un)"
+DROPIN=/etc/systemd/system/getty@tty1.service.d/glass-autologin.conf
+SETTINGS="$HOME/.config/glass/settings.json"
+BEGIN="# >>> glass: Hyprland на tty1 >>>"
+END="# <<< glass <<<"
+case "$(getent passwd "$ME" | cut -d: -f7)" in
+  */zsh) PROFILE="$HOME/.zprofile" ;;
+  *)     PROFILE="$HOME/.bash_profile" ;;
+esac
+
+set_lock_on_start() {
+  python3 - "$SETTINGS" "$1" <<'PY'
+import json, sys
+p, v = sys.argv[1], sys.argv[2] == "true"
+d = json.load(open(p))
+d["lockOnStart"] = v
+json.dump(d, open(p, "w"), indent=4)
+PY
+}
+strip_profile() {
+  [ -f "$PROFILE" ] || return 0
+  sed -i "/^$BEGIN\$/,/^$END\$/d" "$PROFILE"
+}
+
+if [ "${1:-}" = "--undo" ]; then
+  echo ":: возвращаю SDDM"
+  sudo rm -f "$DROPIN"
+  sudo rmdir --ignore-fail-on-non-empty "$(dirname "$DROPIN")" 2>/dev/null || true
+  sudo systemctl daemon-reload
+  sudo systemctl enable sddm
+  strip_profile
+  set_lock_on_start false
+  echo "Готово. После перезагрузки снова будет экран входа SDDM."
+  exit 0
+fi
+
+command -v start-hyprland >/dev/null || { echo "!! не найден start-hyprland"; exit 1; }
+[ -f "$SETTINGS" ] || { echo "!! нет $SETTINGS — оболочка glass ещё не запускалась"; exit 1; }
+
+echo "Сначала убедись, что экран блокировки принимает твой пароль:"
+echo "    qs ipc -c glass call lock test      (сам снимется через 15 секунд)"
+read -r -p "Пароль подошёл, продолжать? [y/N] " a
+[ "$a" = y ] || [ "$a" = Y ] || { echo "Отменено."; exit 1; }
+
+echo ":: автовход на tty1"
+sudo mkdir -p "$(dirname "$DROPIN")"
+printf '[Service]\nExecStart=\nExecStart=-/sbin/agetty -o '"'"'-p -f -- \\\\u'"'"' --noclear --autologin %s %%I $TERM\n' "$ME" \
+  | sudo tee "$DROPIN" >/dev/null
+sudo systemctl daemon-reload
+
+echo ":: запуск Hyprland при входе на tty1 ($PROFILE)"
+strip_profile
+cat >> "$PROFILE" <<EOF
+$BEGIN
+if [ -z "\${WAYLAND_DISPLAY:-}" ] && [ "\${XDG_VTNR:-}" = 1 ]; then
+  exec start-hyprland
+fi
+$END
+EOF
+
+echo ":: экран блокировки при входе"
+set_lock_on_start true
+
+echo ":: отключаю SDDM (текущий сеанс не трогаю)"
+sudo systemctl disable sddm
+
+echo
+echo "Готово. После перезагрузки вместо SDDM будет экран блокировки оболочки."
+echo "Вернуть как было: $0 --undo"

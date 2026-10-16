@@ -32,13 +32,13 @@ Item {
                 spacing: 3
                 Label { width: 195; text: Weather.describe(Weather.code); size: 14; weight: 650 }
                 Label {
-                    text: "ощущается " + Math.round(Weather.feels) + "° · "
+                    text: I18n.t("ощущается ", "feels like ") + Math.round(Weather.feels) + "° · "
                           + Math.round(Weather.tMax) + "° / " + Math.round(Weather.tMin) + "°"
                     size: 12; color: Theme.fgVariant
                 }
                 Row {
                     spacing: 10
-                    Row { spacing: 3; Icon { name: "air"; size: 14; color: Theme.fgVariant } Label { text: Math.round(Weather.wind) + " км/ч"; size: 12; color: Theme.fgVariant } }
+                    Row { spacing: 3; Icon { name: "air"; size: 14; color: Theme.fgVariant } Label { text: Math.round(Weather.wind) + I18n.t(" км/ч", " km/h"); size: 12; color: Theme.fgVariant } }
                     Row { spacing: 3; Icon { name: "water_drop"; size: 14; color: Theme.fgVariant } Label { text: Weather.humidity + "%"; size: 12; color: Theme.fgVariant } }
                 }
             }
@@ -56,7 +56,7 @@ Item {
             }
             Label {
                 anchors.right: parent.right
-                text: root.now.toLocaleDateString(Qt.locale(), "dddd, d MMMM")
+                text: I18n.longDate(root.now)
                 size: 12
                 color: Theme.fgVariant
             }

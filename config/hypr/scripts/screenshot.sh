@@ -113,4 +113,5 @@ case "$MODE" in
 esac
 
 wl-copy --type image/png < "$F"
+timeout 3 qs ipc -c glass call island screenshot "$F" >/dev/null 2>&1 || true
 timeout 2 notify-send -a "Скриншот" -i "$F" "Скриншот готов" "$(basename "$F") · скопирован в буфер" 2>/dev/null || true

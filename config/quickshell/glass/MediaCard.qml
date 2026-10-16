@@ -103,7 +103,7 @@ Item {
             }
             Label {
                 width: parent.width
-                text: root.player?.trackTitle || "Ничего не играет"
+                text: root.player?.trackTitle || I18n.t("Ничего не играет", "Nothing playing")
                 size: 20
                 weight: 700
                 maximumLineCount: 1

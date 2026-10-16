@@ -25,6 +25,15 @@ Island {
     }
     readonly property int size: 34
 
+    // значок под курсором — для подписи под доком (её рисует BarContent)
+    property string hoverName: ""
+    property real hoverX: 0
+    function nameFor(appId) {
+        const id = appId || "";
+        const e = DesktopEntries.heuristicLookup(id) ?? DesktopEntries.byId(id.toLowerCase());
+        return e?.name ?? id;
+    }
+
     targetWidth: groups.length > 0 ? groups.length * size + (groups.length - 1) * 2 + 12 : 0
     opacity: groups.length > 0 ? 1 : 0
     Behavior on opacity { Anim { kind: "effects" } }
@@ -97,6 +106,11 @@ Island {
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                     cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        const n = root.nameFor(app.modelData.appId);
+                        if (containsMouse) { root.hoverX = app.mapToItem(root, app.width / 2, 0).x; root.hoverName = n; }
+                        else if (root.hoverName === n) root.hoverName = "";
+                    }
                     onClicked: mouse => {
                         const wins = app.modelData.wins;
                         if (mouse.button === Qt.MiddleButton) {
