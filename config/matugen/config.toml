@@ -19,6 +19,11 @@ term_cyan = "#12a594"
 input_path = "~/.config/matugen/templates/hyprland.conf"
 output_path = "~/.cache/matugen/colors-hyprland.conf"
 
+# то же для нового формата конфига Hyprland (hyprland.lua)
+[templates.hyprland_lua]
+input_path = "~/.config/matugen/templates/hyprland.lua"
+output_path = "~/.cache/matugen/colors-hyprland.lua"
+
 [templates.kitty]
 input_path = "~/.config/matugen/templates/kitty.conf"
 output_path = "~/.cache/matugen/colors-kitty.conf"
@@ -53,3 +58,11 @@ output_path = "~/.local/share/color-schemes/Matugen.colors"
 [templates.sddm]
 input_path = "~/.config/matugen/templates/sddm.conf"
 output_path = "~/.cache/matugen/sddm-colors.conf"
+
+[templates.zsh]
+input_path = "~/.config/matugen/templates/colors-zsh.sh"
+output_path = "~/.cache/matugen/colors-zsh.sh"
+
+[templates.starship]
+input_path = "~/.config/matugen/templates/starship.toml"
+output_path = "~/.cache/matugen/starship.toml"

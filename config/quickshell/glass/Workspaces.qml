@@ -101,7 +101,7 @@ Island {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Hyprland.dispatch("workspace " + cellItem.wsId)
+                    onClicked: Hypr.workspace(cellItem.wsId)
                 }
             }
         }
@@ -133,7 +133,7 @@ Island {
         onWheel: ev => {
             acc += ev.angleDelta.y;
             if (Math.abs(acc) >= 120) {
-                Hyprland.dispatch("workspace " + (acc > 0 ? "e-1" : "e+1"));
+                Hypr.workspace(acc > 0 ? "e-1" : "e+1");
                 acc = 0;
             }
         }

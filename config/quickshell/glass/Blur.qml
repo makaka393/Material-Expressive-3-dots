@@ -23,12 +23,15 @@ Singleton {
 
     // $0 — файл, $1 — «ключ=значение …». Сначала запоминаем текущие значения (если ещё не запомнили);
     // не удалось прочитать хоть одно — ничего не трогаем.
-    readonly property string applyCmd: 'f="$0"; if [ ! -s "$f" ]; then t="$f.tmp"; : > "$t"; for kv in $1; do k=${kv%%=*}; '
+    // hset: работает и со старым hyprland.conf, и с hyprland.lua
+    readonly property string applyCmd: 'hset() { [ "$(hyprctl keyword "$1" "$2" 2>&1)" = ok ] && return 0; p=$(printf %s "$1" | sed "s/:/={/g"); c=$(printf %s "$1" | tr -cd : | sed "s/:/}/g"); hyprctl eval "hl.config({$p=$2$c})" >/dev/null; }; '
+        + 'f="$0"; if [ ! -s "$f" ]; then t="$f.tmp"; : > "$t"; for kv in $1; do k=${kv%%=*}; '
         + 'v=$(hyprctl getoption "decoration:blur:$k" -j | sed -n \'s/.*"\\(int\\|float\\)": *\\([0-9.]*\\).*/\\2/p\'); '
         + '[ -n "$v" ] || { rm -f "$t"; exit 1; }; echo "$k $v" >> "$t"; done; mv "$t" "$f"; fi; '
-        + 'for kv in $1; do hyprctl keyword "decoration:blur:${kv%%=*}" "${kv#*=}" >/dev/null; done'
-    readonly property string restoreCmd: 'f="$0"; [ -s "$f" ] || exit 0; '
-        + 'while read -r k v; do [ -n "$v" ] && hyprctl keyword "decoration:blur:$k" "$v" >/dev/null; done < "$f"; rm -f "$f"'
+        + 'for kv in $1; do hset "decoration:blur:${kv%%=*}" "${kv#*=}"; done'
+    readonly property string restoreCmd: 'hset() { [ "$(hyprctl keyword "$1" "$2" 2>&1)" = ok ] && return 0; p=$(printf %s "$1" | sed "s/:/={/g"); c=$(printf %s "$1" | tr -cd : | sed "s/:/}/g"); hyprctl eval "hl.config({$p=$2$c})" >/dev/null; }; '
+        + 'f="$0"; [ -s "$f" ] || exit 0; '
+        + 'while read -r k v; do [ -n "$v" ] && hset "decoration:blur:$k" "$v"; done < "$f"; rm -f "$f"'
 
     onTargetChanged: sync()
     Component.onCompleted: sync()

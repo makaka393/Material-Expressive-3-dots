@@ -20,12 +20,13 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    // лёгкое затемнение, клик мимо — закрыть
-    Rectangle {
+    // затемнение с точками (волна идёт от поля поиска), клик мимо — закрыть
+    Scrim {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, win.open ? 0.12 : 0)
-        Behavior on color { ColorAnimation { duration: 220 } }
-        MouseArea { anchors.fill: parent; onClicked: win.open = false }
+        shown: win.open
+        dim: 0.26
+        origin: Qt.point(width / 2, Math.round(height * 0.17) + 36)
+        onClicked: win.open = false
     }
 
     Item {

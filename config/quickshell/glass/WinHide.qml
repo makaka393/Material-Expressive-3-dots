@@ -18,12 +18,15 @@ Singleton {
 
     // сохраняем текущие значения (если ещё не сохранены) и только потом гасим;
     // не удалось прочитать хоть одно — ничего не трогаем
-    readonly property string hideCmd: 'f="$0"; if [ ! -s "$f" ]; then t="$f.tmp"; : > "$t"; for k in $1; do '
+    // hset: работает и со старым hyprland.conf, и с hyprland.lua
+    readonly property string hideCmd: 'hset() { [ "$(hyprctl keyword "$1" "$2" 2>&1)" = ok ] && return 0; p=$(printf %s "$1" | sed "s/:/={/g"); c=$(printf %s "$1" | tr -cd : | sed "s/:/}/g"); hyprctl eval "hl.config({$p=$2$c})" >/dev/null; }; '
+        + 'f="$0"; if [ ! -s "$f" ]; then t="$f.tmp"; : > "$t"; for k in $1; do '
         + 'v=$(hyprctl getoption "decoration:$k" -j | sed -n \'s/.*"float": *\\([0-9.]*\\).*/\\1/p\'); '
         + '[ -n "$v" ] || { rm -f "$t"; exit 1; }; echo "$k $v" >> "$t"; done; mv "$t" "$f"; fi; '
-        + 'for k in $1; do hyprctl keyword "decoration:$k" 0 >/dev/null; done'
-    readonly property string showCmd: 'f="$0"; [ -s "$f" ] || exit 0; '
-        + 'while read -r k v; do [ -n "$v" ] && hyprctl keyword "decoration:$k" "$v" >/dev/null; done < "$f"; rm -f "$f"'
+        + 'for k in $1; do hset "decoration:$k" 0; done'
+    readonly property string showCmd: 'hset() { [ "$(hyprctl keyword "$1" "$2" 2>&1)" = ok ] && return 0; p=$(printf %s "$1" | sed "s/:/={/g"); c=$(printf %s "$1" | tr -cd : | sed "s/:/}/g"); hyprctl eval "hl.config({$p=$2$c})" >/dev/null; }; '
+        + 'f="$0"; [ -s "$f" ] || exit 0; '
+        + 'while read -r k v; do [ -n "$v" ] && hset "decoration:$k" "$v"; done < "$f"; rm -f "$f"'
 
     onHideChanged: sync()
     Component.onCompleted: sync()

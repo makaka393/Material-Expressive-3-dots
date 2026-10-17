@@ -25,13 +25,55 @@ PanelWindow {
         function open(): void { win.open = true; }
         function close(): void { win.open = false; }
     }
-    onOpenChanged: if (open) { file.reload(); card.forceActiveFocus(); }
+    onOpenChanged: if (open) { luaFile.reload(); confFile.reload(); card.forceActiveFocus(); }
 
+    // новый формат (hyprland.lua) важнее старого: Hyprland тоже берёт его, если он есть
+    property bool haveLua: false
     FileView {
-        id: file
+        id: luaFile
+        path: Quickshell.env("HOME") + "/.config/hypr/hyprland.lua"
+        printErrors: false
+        onLoaded: { win.haveLua = true; win.cols = win.build(win.luaToConf(text())); }
+        onLoadFailed: win.haveLua = false
+    }
+    FileView {
+        id: confFile
         path: Quickshell.env("HOME") + "/.config/hypr/hyprland.conf"
         printErrors: false
-        onLoaded: win.cols = win.build(text())
+        onLoaded: if (!win.haveLua) win.cols = win.build(text())
+    }
+
+    // hl.bind("SUPER + SHIFT + 1", hl.dsp.window.move({ workspace = 1 })) → «bind = SUPER SHIFT, 1, movetoworkspace, 1»
+    readonly property var luaDsp: ({ "window.close": "killactive", "exit": "exit", "window.float": "togglefloating",
+        "window.pseudo": "pseudo", "window.fullscreen": "fullscreen", "window.drag": "movewindow", "window.resize": "resizewindow" })
+    function luaToConf(text) {
+        const vars = {}, out = [];
+        for (const raw of text.split("\n")) {
+            const line = raw.trim();
+            let m = line.match(/^local\s+(\w+)\s*=\s*"([^"]*)"/);
+            if (m) { vars[m[1]] = m[2]; continue; }
+            m = line.match(/^hl\.bind\(\s*"([^"]+)"\s*,\s*hl\.dsp\.([\w.]+)\((.*?)\)\s*(,\s*\{.*\})?\s*\)\s*(--.*)?$/);
+            if (!m) continue;
+            const parts = m[1].split("+").map(x => x.trim());
+            const key = parts.pop();
+            const fn = m[2], a = m[3];
+            let disp = luaDsp[fn] || fn, arg = "";
+            if (fn === "exec_cmd") {
+                disp = "exec";
+                // склеиваем строку из литералов и переменных: "bash -c \"…" .. home .. "…"
+                const re = /"((?:[^"\\]|\\.)*)"|([A-Za-z_]\w*)/g;
+                let t;
+                while ((t = re.exec(a)) !== null) arg += t[1] !== undefined ? t[1].replace(/\\(.)/g, "$1") : (vars[t[2]] ?? "");
+            } else if (fn === "focus") {
+                const d = a.match(/direction\s*=\s*"(\w)/), w = a.match(/workspace\s*=\s*"?([^"\s}]+)/);
+                if (d) { disp = "movefocus"; arg = d[1]; } else if (w) { disp = "workspace"; arg = w[1]; }
+            } else if (fn === "window.move") {
+                const w = a.match(/workspace\s*=\s*"?([^"\s}]+)/);
+                if (w) { disp = "movetoworkspace"; arg = w[1]; }
+            }
+            out.push("bind = " + parts.join(" ") + ", " + key + ", " + disp + (arg !== "" ? ", " + arg : ","));
+        }
+        return out.join("\n");
     }
 
     readonly property var modNames: ({ SUPER: "Super", SHIFT: "Shift", CTRL: "Ctrl", CONTROL: "Ctrl", ALT: "Alt" })
@@ -67,7 +109,7 @@ PanelWindow {
         case "exec":
             for (const k of known) if (k[0].test(arg)) return [0, t(k[1], k[2])];
             // sh -c "звук & kitty" → главное приложение — последняя команда в строке
-            const inner = arg.match(/^(?:ba|z)?sh\s+-c\s+["'](.*)["']$/);
+            const inner = arg.match(/^(?:ba|z)?sh\s+-c\s+["']?(.*?)["']?$/);
             const cmd = (inner ? inner[1].split(/&&|;|&/).pop() : arg).trim();
             return [3, cmd.split(/\s+/)[0].replace(/^.*\//, "")];
         }
@@ -115,12 +157,12 @@ PanelWindow {
         return cols;
     }
 
-    // лёгкое затемнение, клик мимо — закрыть
-    Rectangle {
+    // затемнение с точками (волна идёт из центра), клик мимо — закрыть
+    Scrim {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, win.open ? 0.18 : 0)
-        Behavior on color { ColorAnimation { duration: 260 } }
-        MouseArea { anchors.fill: parent; onClicked: win.open = false }
+        shown: win.open
+        origin: Qt.point(width / 2, height / 2)
+        onClicked: win.open = false
     }
 
     Item {

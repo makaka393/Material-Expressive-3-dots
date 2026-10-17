@@ -1,0 +1,43 @@
+# сгенерировано matugen (~/.config/matugen/templates/starship.toml) — правь шаблон, не этот файл
+"$schema" = 'https://starship.rs/config-schema.json'
+add_newline = true
+palette = "glass"
+
+format = """
+[](fg:pc)$directory[](fg:pc)\
+$git_branch$git_status\
+$cmd_duration
+$character"""
+
+[palettes.glass]
+primary = "{{colors.primary.default.hex}}"
+pc = "{{colors.primary_container.default.hex}}"
+onpc = "{{colors.on_primary_container.default.hex}}"
+sc = "{{colors.secondary_container.default.hex}}"
+onsc = "{{colors.on_secondary_container.default.hex}}"
+tertiary = "{{colors.tertiary.default.hex}}"
+err = "{{colors.error.default.hex}}"
+fgv = "{{colors.on_surface_variant.default.hex}}"
+
+[directory]
+format = "[ $path ]($style)[$read_only]($read_only_style)"
+style = "bold bg:pc fg:onpc"
+read_only = " 󰌾"
+read_only_style = "bg:pc fg:onpc"
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+format = " [](fg:sc)[ $symbol$branch ](bg:sc fg:onsc)[](fg:sc)"
+symbol = " "
+
+[git_status]
+format = "[ $all_status$ahead_behind](bold fg:tertiary)"
+
+[cmd_duration]
+min_time = 2000
+format = " [took](fg:fgv) [$duration](bold fg:tertiary)"
+
+[character]
+success_symbol = "[❯](bold fg:primary)"
+error_symbol = "[❯](bold fg:err)"

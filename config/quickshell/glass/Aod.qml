@@ -30,7 +30,7 @@ PanelWindow {
         const need = byIdle && Config.aodLock >= 0 && Date.now() - shownAt >= Config.aodLock * 1000;
         if (!need) { open = false; return; }
         locking = true;
-        Locker.lock();
+        Locker.lock(true);        // экран блокировки «проснётся» из AOD
         lockDelay.restart();
     }
     Timer { id: lockDelay; interval: 800; onTriggered: { win.locking = false; win.open = false; } }

@@ -23,6 +23,32 @@ Singleton {
     property bool failed: false
     property int tries: 0
     property bool testing: false
+    property bool wake: false            // заперли, уходя с AOD: экран «просыпается» из AOD, без заставки
+
+    // обои для экрана блокировки — узнаём заранее, чтобы при блокировке не мелькал чёрный экран
+    property string wallFile: ""
+    property string frameFile: ""
+    function resolveWall() { if (!wallProc.running) wallProc.running = true; }
+    Process {
+        id: wallProc
+        running: true
+        command: ["sh", "-c", 'w=$(readlink -f "$HOME/.cache/matugen/wallpaper"); echo "$w"; '
+            + 'case "$w" in *.[mM][pP]4|*.[wW][eE][bB][mM]|*.[mM][kK][vV]|*.[mM][oO][vV]|*.[gG][iI][fF]|*.[wW][eE][bB][pP]) echo "$HOME/.cache/matugen/frame.png";; *) echo "$w";; esac']
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const l = text.trim().split("\n");
+                root.wallFile = l[0] || "";
+                root.frameFile = l[1] || "";
+            }
+        }
+    }
+    // обои сменили — путь обновится к следующей блокировке
+    FileView {
+        path: Quickshell.env("HOME") + "/.cache/matugen/colors.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.resolveWall()
+    }
 
     // Файлы-метки лежат в папке текущего экземпляра Hyprland: новый вход — новые метки.
     readonly property string inst: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/hypr/" + Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
@@ -30,8 +56,9 @@ Singleton {
     readonly property string startedFile: inst + "/glass-started"     // оболочка в этом сеансе уже запускалась
 
     function reset() { text = ""; checking = false; failed = false; }
-    function lock() {
+    function lock(fromAod) {
         if (locked) return;
+        wake = fromAod === true;
         preview = false;
         reset();
         Quickshell.execDetached(["touch", lockedFile]);
@@ -43,6 +70,7 @@ Singleton {
         locked = false;
         preview = false;
         testing = false;
+        wake = false;
         reset();
     }
     function submit() {
@@ -80,6 +108,8 @@ Singleton {
         function preview(): void { if (!root.locked) { root.reset(); root.preview = true; } }
         function unlock(): void { root.unlock(); }
         function test(): void { root.testing = true; testTimer.restart(); root.lock(); }
+        // то же, но как после AOD — проверить «пробуждение»
+        function testWake(): void { root.testing = true; testTimer.restart(); root.lock(true); }
     }
 
     // При старте оболочки запираем экран в двух случаях:

@@ -16,4 +16,5 @@ ShellRoot {
     Aod {}
     Lock {}
     Hotkeys {}
+    Desktop {}
 }

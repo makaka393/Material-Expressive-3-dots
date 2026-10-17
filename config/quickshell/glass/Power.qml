@@ -38,6 +38,7 @@ Island {
         if (a.confirm && armed !== a.id) { armed = a.id; disarm.restart(); return; }
         open = false; armed = "";
         if (a.id === "lock") { Locker.lock(); return; }
+        if (a.id === "logout") { Hypr.dispatch("exit", "hl.dsp.exit()"); return; }
         // перед сном запираем экран: после пробуждения — экран блокировки, а не рабочий стол
         if (a.id === "suspend") { Locker.lock(); Quickshell.execDetached(["sh", "-c", "sleep 0.8; exec systemctl suspend"]); return; }
         Quickshell.execDetached(a.cmd);

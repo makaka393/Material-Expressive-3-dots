@@ -73,8 +73,8 @@ Singleton {
     readonly property color frost: Qt.tint(surfaceHigh, Qt.rgba(1, 1, 1, 0.08))
     readonly property color glass: m3 ? Qt.alpha(surfaceMid, m3Opacity) : Qt.alpha(frost, glassOpacity)
     // раскрытые карточки/окна не бывают совсем прозрачными — иначе нечитаемо
-    readonly property color glassStrong: m3 ? Qt.alpha(surfaceHigh, Math.max(0.3, Math.min(1, m3Opacity + 0.25)))
-                                            : Qt.alpha(frost, Math.max(0.3, Math.min(1, glassOpacity + 0.25)))
+    readonly property color glassStrong: m3 ? Qt.alpha(surfaceHigh, Math.max(0.45, Math.min(1, m3Opacity + 0.25)))
+                                            : Qt.alpha(frost, Math.max(0.45, Math.min(1, glassOpacity + 0.25)))
     readonly property color glassBorder: m3 ? Qt.alpha(fg, m3Opacity < 0.97 ? 0.07 : 0) : Qt.alpha(fg, 0.10)
     readonly property color glassSheen: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.09)      // блик сверху
     readonly property color glassRim: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.34)        // светлая кромка по верхнему краю

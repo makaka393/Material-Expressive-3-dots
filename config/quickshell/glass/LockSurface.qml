@@ -14,26 +14,20 @@ Item {
     property bool active: false
     readonly property real k: Math.max(0.6, height / 1440)
 
-    // ── обои: настоящий файл и картинка для фона (у видео — его кадр)
-    property string wallFile: ""
-    property string frameFile: ""
+    // ── обои: настоящий файл и картинка для фона (у видео — его кадр); путь Locker знает заранее
+    readonly property string wallFile: Locker.wallFile
+    readonly property string frameFile: Locker.frameFile
     readonly property bool isVideo: /\.(mp4|webm|mkv|mov)$/i.test(wallFile)
-    Process {
-        running: true
-        command: ["sh", "-c", 'w=$(readlink -f "$HOME/.cache/matugen/wallpaper"); echo "$w"; '
-            + 'case "$w" in *.[mM][pP]4|*.[wW][eE][bB][mM]|*.[mM][kK][vV]|*.[mM][oO][vV]|*.[gG][iI][fF]|*.[wW][eE][bB][pP]) echo "$HOME/.cache/matugen/frame.png";; *) echo "$w";; esac']
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const l = text.trim().split("\n");
-                s.wallFile = l[0] || "";
-                s.frameFile = l[1] || "";
-            }
-        }
-    }
+
+    // Пробуждение из AOD (Locker.wake): без заставки — часы плавно переезжают с места, где были
+    // на AOD, а тёмная пелена AOD рассеивается. Иначе — обычное появление.
+    readonly property bool wake: !preview && Locker.wake
+    property real wakeT: wake ? 0 : 1
+    NumberAnimation on wakeT { from: 0; to: 1; duration: 1100; easing.type: Easing.OutCubic; running: s.wake }
 
     // появление
-    property real p: 0
-    NumberAnimation on p { from: 0; to: 1; duration: 1500; running: true }
+    property real p: wake ? 1 : 0
+    NumberAnimation on p { from: 0; to: 1; duration: 1500; running: !s.wake }
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -84,7 +78,7 @@ Item {
             anchors.fill: parent
             source: s.frameFile !== "" ? "file://" + s.frameFile : ""
             fillMode: Image.PreserveAspectCrop
-            asynchronous: true
+            asynchronous: false               // первый кадр замка — уже с обоями, без чёрной вспышки
             sourceSize.width: s.width
             sourceSize.height: s.height
         }
@@ -107,6 +101,13 @@ Item {
         saturation: s.active ? 0.12 : 0
         Behavior on blur { Anim { kind: "effects"; duration: 450 } }
     }
+    // пелена AOD: при пробуждении рассеивается — экран «просыпается»
+    Rectangle {
+        anchors.fill: parent
+        color: "black"
+        visible: opacity > 0
+        opacity: s.wake ? Config.aodDim * (1 - s.wakeT) : 0
+    }
     // затемнение для читаемости: снизу сильнее, в режиме ввода — везде
     Rectangle {
         anchors.fill: parent
@@ -122,22 +123,26 @@ Item {
     Column {
         id: top
         anchors.horizontalCenter: parent.horizontalCenter
-        y: s.height * (s.active ? 0.07 : 0.15)
+        // при пробуждении из AOD — с места часов на AOD (AodFace: 0.47 высоты, крупнее в 1.35/1.15 раза)
+        readonly property real restY: s.height * (s.active ? 0.07 : 0.15)
+        readonly property real aodY: s.height * 0.47 - wakeClock.implicitHeight * (1.35 / 1.15) * 0.62
+        y: s.wakeT < 1 ? aodY + (restY - aodY) * s.wakeT : restY
         spacing: 26 * s.k
-        Behavior on y { Anim { kind: "spatial" } }
+        Behavior on y { enabled: s.wakeT >= 1; Anim { kind: "spatial" } }
         // мягкая тень: часы читаются и на светлых обоях
         layer.enabled: true
         layer.effect: MultiEffect { shadowEnabled: true; shadowColor: "black"; shadowOpacity: 0.5; shadowBlur: 0.9; shadowVerticalOffset: 3; autoPaddingEnabled: true }
 
         AodClock {
+            id: wakeClock
             anchors.horizontalCenter: parent.horizontalCenter
             style: Config.aodFace
             showDate: false                 // дата — в пилюле ниже: там она читается на любых обоях
             now: clock.date
             // уменьшаем масштабом, а не размером шрифта: иначе каждый кадр анимации — новый шрифт
             transformOrigin: Item.Top
-            scale: s.active ? 0.6 : 1
-            Behavior on scale { Anim { kind: "spatial" } }
+            scale: (s.active ? 0.6 : 1) * (1 + (1.35 / 1.15 - 1) * (1 - s.wakeT))
+            Behavior on scale { enabled: s.wakeT >= 1; Anim { kind: "spatial" } }
             k: s.k * 1.15
             p: s.p
         }

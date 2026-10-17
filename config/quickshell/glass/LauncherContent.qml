@@ -130,6 +130,8 @@ Item {
           run: () => Quickshell.execDetached(["sh", "-c", 'sleep 0.4; p=$(slurp -p) || exit 0; '
               + 'c=$(grim -g "$p" -t ppm - | magick - -format "%[hex:p{0,0}]" info:) || exit 0; c="#$(printf %s "$c" | cut -c1-6)"; '
               + 'wl-copy -- "$c"; qs ipc -c glass call island toast colorize "$c" "$0"', I18n.t("Цвет скопирован", "Color copied")]) },
+        { icon: "widgets", ru: "Изменить виджеты", en: "Edit widgets", k: "widgets виджеты рабочий стол desktop",
+          run: () => { Widgets.editing = true; } },
         { icon: "keyboard", ru: "Горячие клавиши", en: "Keyboard shortcuts", k: "hotkeys keys shortcuts клавиши шпаргалка бинды binds",
           run: () => Quickshell.execDetached(["qs", "ipc", "-c", "glass", "call", "hotkeys", "open"]) },
         { icon: "lock", ru: "Заблокировать экран", en: "Lock screen", k: "lock блокировка замок экран",
