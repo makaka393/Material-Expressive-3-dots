@@ -21,7 +21,7 @@ Item {
         Row {
             spacing: 8
             visible: Weather.ready
-            Icon { anchors.verticalCenter: parent.verticalCenter; name: Weather.icon(Weather.code, Weather.isDay); size: 24; fill: 1; color: Theme.primary }
+            Icon { anchors.verticalCenter: parent.verticalCenter; name: Weather.icon(Weather.code, Weather.isDay); size: 24; fill: 1; color: Qt.rgba(1, 1, 1, 0.9) }
             Label {
                 anchors.verticalCenter: parent.verticalCenter
                 text: Math.round(Weather.temp) + "°  ·  " + Weather.describe(Weather.code)

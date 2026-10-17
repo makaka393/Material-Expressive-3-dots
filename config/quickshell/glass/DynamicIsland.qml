@@ -25,7 +25,8 @@ Island {
 
     strong: mode !== "compact" || toast || notif
     targetWidth: notif ? 460 : toast ? (toastImage ? 400 : 360)
-               : mode === "media" ? 520 : mode === "weather" ? 520 : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
+               : mode === "media" || mode === "weather" ? Math.max(520, compact.implicitWidth + 30)
+               : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
     targetHeight: notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
                 : mode === "media" ? 184 : mode === "weather" ? 196 : mode === "calendar" ? 328 : Theme.barHeight
 
