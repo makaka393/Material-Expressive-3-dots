@@ -537,19 +537,21 @@ Variants {
             }
         }
 
-        // ── каталог виджетов: живые превью (создаются, только пока каталог открыт)
+        // ── каталог виджетов по категориям: чипы сверху оставляют одну категорию, у каждой — живые
+        // превью настоящих виджетов (создаются, только пока каталог открыт)
         Item {
             id: sheet
-            readonly property int perRow: Math.max(4, Math.min(8, Math.floor((width - 36 + 12) / 150)))
-            readonly property int cardW: (width - 36 - 12 * (perRow - 1)) / perRow
+            readonly property int cardW: 148
+            readonly property int cardH: 156
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(win.width - 80, 1300)
-            height: 66 + Math.ceil(Widgets.catalog.length / perRow) * 172
+            width: Math.min(win.width - 80, 1340)
+            height: Math.min(win.height - win.top - 140, flow.implicitHeight + 90)
             y: editBar.y - height - 16 + (Widgets.picking ? 0 : 40)
             z: 16
             opacity: Widgets.picking && Widgets.editing ? 1 : 0
             scale: Widgets.picking ? 1 : 0.96
             visible: opacity > 0
+            Behavior on height { Anim { kind: "spatial" } }
             Behavior on y { Anim { kind: "spatial" } }
             Behavior on scale { Anim { kind: "spatial" } }
             Behavior on opacity { Anim { kind: "effects" } }
@@ -557,56 +559,120 @@ Variants {
             MouseArea { anchors.fill: parent }   // клики мимо карточек не уходят на рабочий стол
             Rectangle { anchors.fill: parent; radius: 36; color: Qt.alpha(Theme.surfaceLow, 0.82) }
             GlassSurface { anchors.fill: parent; radius: 36; strong: true }
-            Label { x: 26; y: 18; text: I18n.t("Виджеты", "Widgets"); size: 16; weight: 750; color: Theme.primaryText; elide: Text.ElideNone }
-            Label { anchors { right: parent.right; rightMargin: 26; top: parent.top; topMargin: 20 }
-                    text: I18n.t("Размер — за ручки по краям, вид — «Настроить»", "Resize with the edge handles, restyle with Customize"); size: 12; color: Theme.fgVariant; elide: Text.ElideNone }
-            Grid {
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18; topMargin: 54 }
-                columns: sheet.perRow
-                spacing: 12
-                Repeater {
-                    model: Widgets.picking ? Widgets.catalog : []
-                    Rectangle {
-                        id: cat
-                        required property var modelData
-                        required property int index
-                        width: sheet.cardW
-                        height: 160
-                        radius: catMouse.pressed ? 18 : 28
-                        color: catMouse.containsMouse ? Qt.alpha(Theme.primary, 0.2) : Theme.glassChip
-                        Behavior on radius { Anim { kind: "fast" } }
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        // карточки проявляются по очереди
-                        opacity: 0
-                        Component.onCompleted: opacity = 1
-                        Behavior on opacity { SequentialAnimation { PauseAnimation { duration: cat.index * 22 } NumberAnimation { duration: 260 } } }
-                        scale: catMouse.pressed ? 0.95 : 1
-                        Behavior on scale { Anim { kind: "fast" } }
+            Label { id: sheetTitle; x: 26; y: 22; text: I18n.t("Виджеты", "Widgets"); size: 17; weight: 750; color: Theme.primaryText; elide: Text.ElideNone }
 
-                        // превью: настоящий виджет размера по умолчанию, уменьшенный в карточку
-                        Item {
-                            id: pv
-                            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 10 }
-                            width: parent.width - 20; height: 104
-                            readonly property real w0: win.span(cat.modelData.w)
-                            readonly property real h0: win.span(cat.modelData.h)
-                            Loader {
-                                id: pvl
-                                width: pv.w0; height: pv.h0
-                                anchors.centerIn: parent
-                                scale: Math.min(pv.width / pv.w0, pv.height / pv.h0)
-                                enabled: false
-                                sourceComponent: win.comps[cat.modelData.type] ?? null
-                            }
-                            Binding { target: pvl.item; property: "now"; value: clock.date; when: !!pvl.item }
+            // ── категории
+            Row {
+                anchors { left: sheetTitle.right; leftMargin: 20; verticalCenter: sheetTitle.verticalCenter }
+                spacing: 6
+                Repeater {
+                    model: [{ id: "", icon: "apps", ru: "Все", en: "All" }].concat(Widgets.categories)
+                    Rectangle {
+                        id: chip
+                        required property var modelData
+                        readonly property bool on: Widgets.pickCat === modelData.id
+                        height: 36; width: chipRow.implicitWidth + 28
+                        radius: chipMouse.pressed ? 10 : on ? 18 : 12
+                        color: on ? Theme.secondaryContainer : chipMouse.containsMouse ? Qt.alpha(Theme.fg, 0.12) : Theme.glassChip
+                        Behavior on radius { Anim { kind: "fast" } }
+                        Behavior on color { ColorAnimation { duration: 180 } }
+                        Behavior on width { Anim { kind: "fast" } }
+                        Row {
+                            id: chipRow
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Icon { anchors.verticalCenter: parent.verticalCenter; name: chip.on ? "check" : chip.modelData.icon; size: 18
+                                   fill: chip.on ? 1 : 0; weight: chip.on ? 700 : 500; color: chip.on ? Theme.secondaryContainerFg : Theme.fg }
+                            Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t(chip.modelData.ru, chip.modelData.en); size: 13
+                                    weight: chip.on ? 700 : 600; color: chip.on ? Theme.secondaryContainerFg : Theme.fg; elide: Text.ElideNone }
                         }
-                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 28 }
-                                width: parent.width - 12; horizontalAlignment: Text.AlignHCenter
-                                text: I18n.t(cat.modelData.ru, cat.modelData.en); size: 13; weight: 650 }
-                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
-                                text: cat.modelData.w + " × " + cat.modelData.h; size: 11; color: Theme.fgVariant; elide: Text.ElideNone }
-                        MouseArea { id: catMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: { Widgets.add(cat.modelData.type); Widgets.picking = false; } }
+                        MouseArea { id: chipMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Widgets.pickCat = chip.modelData.id }
+                    }
+                }
+            }
+
+            // ── секции
+            Flickable {
+                id: scroller
+                anchors { left: parent.left; right: parent.right; top: parent.top; bottom: parent.bottom; leftMargin: 18; rightMargin: 18; topMargin: 70; bottomMargin: 18 }
+                contentHeight: flow.implicitHeight
+                clip: true
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                Flow {
+                    id: flow
+                    width: scroller.width
+                    spacing: 24
+                    // секции съезжают на новые места и проявляются при смене категории
+                    move: Transition { NumberAnimation { properties: "x,y"; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.05 } }
+                    add: Transition {
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 240 }
+                        NumberAnimation { property: "scale"; from: 0.94; to: 1; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
+                    }
+                    Repeater {
+                        model: Widgets.picking ? Widgets.categories : []
+                        Column {
+                            id: sec
+                            required property var modelData
+                            readonly property var items: Widgets.inCategory(modelData.id)
+                            visible: Widgets.pickCat === "" || Widgets.pickCat === modelData.id
+                            spacing: 10
+                            Row {
+                                spacing: 8
+                                leftPadding: 6
+                                Icon { anchors.verticalCenter: parent.verticalCenter; name: sec.modelData.icon; size: 18; fill: 1; color: Theme.primaryText }
+                                Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t(sec.modelData.ru, sec.modelData.en); size: 14; weight: 700; elide: Text.ElideNone }
+                                Label { anchors.verticalCenter: parent.verticalCenter; text: sec.items.length; size: 12; weight: 600; color: Theme.fgVariant; elide: Text.ElideNone }
+                            }
+                            Row {
+                                spacing: 12
+                                Repeater {
+                                    model: sec.items
+                                    Rectangle {
+                                        id: cat
+                                        required property var modelData
+                                        required property int index
+                                        width: sheet.cardW
+                                        height: sheet.cardH
+                                        radius: catMouse.pressed ? 18 : 28
+                                        color: catMouse.containsMouse ? Qt.alpha(Theme.primary, 0.2) : Theme.glassChip
+                                        Behavior on radius { Anim { kind: "fast" } }
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        // карточки проявляются по очереди
+                                        opacity: 0
+                                        Component.onCompleted: opacity = 1
+                                        Behavior on opacity { SequentialAnimation { PauseAnimation { duration: cat.index * 40 } NumberAnimation { duration: 260 } } }
+                                        scale: catMouse.pressed ? 0.95 : 1
+                                        Behavior on scale { Anim { kind: "fast" } }
+
+                                        // превью: настоящий виджет размера по умолчанию, уменьшенный в карточку
+                                        Item {
+                                            id: pv
+                                            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 10 }
+                                            width: parent.width - 20; height: 100
+                                            readonly property real w0: win.span(cat.modelData.w)
+                                            readonly property real h0: win.span(cat.modelData.h)
+                                            Loader {
+                                                id: pvl
+                                                width: pv.w0; height: pv.h0
+                                                anchors.centerIn: parent
+                                                scale: Math.min(pv.width / pv.w0, pv.height / pv.h0)
+                                                enabled: false
+                                                sourceComponent: win.comps[cat.modelData.type] ?? null
+                                            }
+                                            Binding { target: pvl.item; property: "now"; value: clock.date; when: !!pvl.item }
+                                        }
+                                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 26 }
+                                                width: parent.width - 12; horizontalAlignment: Text.AlignHCenter
+                                                text: I18n.t(cat.modelData.ru, cat.modelData.en); size: 13; weight: 650 }
+                                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 9 }
+                                                text: cat.modelData.w + " × " + cat.modelData.h; size: 11; color: Theme.fgVariant; elide: Text.ElideNone }
+                                        MouseArea { id: catMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { Widgets.add(cat.modelData.type); Widgets.picking = false; } }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
