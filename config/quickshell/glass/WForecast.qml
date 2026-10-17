@@ -5,6 +5,9 @@ import QtQuick.Shapes
 // под ними — значки и часы. Сколько часов видно — от ширины; в три ряда снизу ещё и дни недели.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     readonly property bool tall: height >= 300
     readonly property int n: Math.max(4, Math.min(12, Math.floor((width - 40) / 62)))
@@ -17,7 +20,7 @@ Item {
     readonly property real tMin: pts.length ? Math.min(...pts.map(p => p.temp)) : 0
     readonly property real tMax: pts.length ? Math.max(...pts.map(p => p.temp)) : 1
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "tertiary" }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "tertiary" }
 
     Row {
         id: head

@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 
 T = 1024           # размер тайла, пиксели
-R_MIN = 34         # минимальное расстояние между точками
+R_MIN = 46         # минимальное расстояние между точками
 SEED = 7
 
 
@@ -72,9 +72,9 @@ def main():
 
     for x, y in pts:
         u = rng.random()
-        rc = 0.8 + 1.7 * u ** 2.4                # сердцевина: в основном мелкие, изредка крупные
-        sigma = 2.2 + rc * 2.4                   # свечение шире у крупных
-        amp = 0.35 + 0.65 * rng.random()
+        rc = 0.5 + 1.0 * u ** 2.6                # сердцевина: почти все — пылинки, изредка покрупнее
+        sigma = 1.6 + rc * 2.1                   # свечение шире у крупных
+        amp = 0.2 + 0.5 * rng.random()
         ph = rng.random()
         reach = int(np.ceil(sigma * 3.2 + rc + 2))
         xs = np.arange(int(x) - reach, int(x) + reach + 1)

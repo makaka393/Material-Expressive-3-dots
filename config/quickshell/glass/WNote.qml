@@ -4,6 +4,7 @@ import QtQuick
 // мимо — готово. Текст хранится в раскладке виджетов (widgets.json). «Очистить» — в меню по правому клику.
 Item {
     id: root
+    property date now: new Date()
     property string wid: ""
     property var cfg: ({})
 
@@ -15,7 +16,7 @@ Item {
         function onEditingChanged() { if (Widgets.editing) edit.focus = false; }
     }
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "tertiary"; radius: 36 }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "tertiary"; radius: 36 }
 
     Icon {
         id: pin

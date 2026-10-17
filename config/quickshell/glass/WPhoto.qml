@@ -8,6 +8,7 @@ import Quickshell.Io
 // «Другая форма» — печенька, клевер, скруглённый квадрат, шестиугольник, круг.
 Item {
     id: root
+    property date now: new Date()
     property string wid: ""
     property var cfg: ({})
 
@@ -36,7 +37,7 @@ Item {
         stdout: StdioCollector { onStreamFinished: root.files = text.split("\n").filter(x => x !== "").sort() }
     }
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "secondary"; plain: true }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "secondary"; defaultBg: "none" }
 
     // две картинки по очереди: новая грузится в заднюю и, когда готова, проявляется поверх
     Item {

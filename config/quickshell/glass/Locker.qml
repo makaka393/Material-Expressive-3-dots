@@ -28,6 +28,7 @@ Singleton {
     // обои для экрана блокировки — узнаём заранее, чтобы при блокировке не мелькал чёрный экран
     property string wallFile: ""
     property string frameFile: ""
+    property int frameRev: 0            // растёт при каждой смене обоев: у видео кадр всегда в одном файле (frame.png)
     function resolveWall() { if (!wallProc.running) wallProc.running = true; }
     Process {
         id: wallProc
@@ -39,6 +40,7 @@ Singleton {
                 const l = text.trim().split("\n");
                 root.wallFile = l[0] || "";
                 root.frameFile = l[1] || "";
+                root.frameRev++;
             }
         }
     }

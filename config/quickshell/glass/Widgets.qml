@@ -11,44 +11,51 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    // каталог: размер по умолчанию и пределы в клетках; menu — свои пункты в меню по правому клику
+    // каталог: размер по умолчанию и пределы в клетках; tone и bg — цвет темы и подложка по умолчанию
+    // (каждый виджет можно перенастроить: «Настроить» в режиме правки); menu — свои пункты меню
     readonly property var catalog: [
-        { type: "glance",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 2, icon: "wb_sunny",          ru: "Коротко о главном", en: "At a glance" },
-        { type: "clock",    w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "schedule",          ru: "Часы",              en: "Clock" },
-        { type: "analog",   w: 2, h: 2, minW: 2, minH: 2, maxW: 4, maxH: 4, icon: "nest_clock_farsight_analog", ru: "Циферблат", en: "Analog clock",
-          menu: [{ id: "shape", icon: "interests", ru: "Другая форма", en: "Change shape" }] },
-        { type: "weather",  w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "partly_cloudy_day", ru: "Погода",            en: "Weather" },
-        { type: "forecast", w: 4, h: 2, minW: 3, minH: 2, maxW: 8, maxH: 3, icon: "show_chart",        ru: "Прогноз",           en: "Forecast" },
-        { type: "music",    w: 4, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "music_note",        ru: "Музыка",            en: "Music" },
-        { type: "calendar", w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4, icon: "calendar_month",    ru: "Календарь",         en: "Calendar" },
-        { type: "search",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 1, icon: "search",            ru: "Поиск",             en: "Search" },
-        { type: "apps",     w: 4, h: 1, minW: 2, minH: 1, maxW: 8, maxH: 2, icon: "apps",              ru: "Частые приложения", en: "Frequent apps" },
-        { type: "toggles",  w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "toggle_on",         ru: "Быстрые кнопки",    en: "Quick toggles" },
-        { type: "system",   w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "memory",            ru: "Система",           en: "System" },
-        { type: "timer",    w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "timer",             ru: "Таймер",            en: "Timer" },
-        { type: "note",     w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, icon: "sticky_note_2",     ru: "Заметка",           en: "Note",
+        { type: "glance",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 2, tone: "primary",   bg: "none", icon: "wb_sunny",          ru: "Коротко о главном", en: "At a glance" },
+        { type: "clock",    w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 4, tone: "primary",   bg: "none", icon: "schedule",          ru: "Часы",              en: "Clock" },
+        { type: "weather",  w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "secondary", bg: "blur", icon: "partly_cloudy_day", ru: "Погода",            en: "Weather" },
+        { type: "forecast", w: 4, h: 2, minW: 3, minH: 2, maxW: 8, maxH: 3, tone: "tertiary",  bg: "blur", icon: "show_chart",        ru: "Прогноз",           en: "Forecast" },
+        { type: "music",    w: 4, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "tertiary",  bg: "blur", icon: "music_note",        ru: "Музыка",            en: "Music" },
+        { type: "calendar", w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4, tone: "neutral",   bg: "blur", icon: "calendar_month",    ru: "Календарь",         en: "Calendar" },
+        { type: "search",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 1, tone: "neutral",   bg: "blur", icon: "search",            ru: "Поиск",             en: "Search" },
+        { type: "apps",     w: 4, h: 1, minW: 2, minH: 1, maxW: 8, maxH: 2, tone: "neutral",   bg: "blur", icon: "apps",              ru: "Частые приложения", en: "Frequent apps" },
+        { type: "toggles",  w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "primary",   bg: "blur", icon: "toggle_on",         ru: "Быстрые кнопки",    en: "Quick toggles" },
+        { type: "system",   w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "secondary", bg: "blur", icon: "memory",            ru: "Система",           en: "System" },
+        { type: "timer",    w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary",  bg: "blur", icon: "timer",             ru: "Таймер",            en: "Timer" },
+        { type: "note",     w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "tertiary",  bg: "blur", icon: "sticky_note_2",     ru: "Заметка",           en: "Note",
           menu: [{ id: "clear", icon: "ink_eraser", ru: "Очистить заметку", en: "Clear note" }] },
-        { type: "sun",      w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "wb_twilight",       ru: "Солнце",            en: "Sun" },
-        { type: "photo",    w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, icon: "photo",             ru: "Фото",              en: "Photo",
-          menu: [{ id: "next", icon: "skip_next", ru: "Следующее фото", en: "Next photo" },
-                 { id: "shape", icon: "interests", ru: "Другая форма", en: "Change shape" }] },
-        { type: "progress", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 3, icon: "data_usage",        ru: "День и год",        en: "Day & year",
-          menu: [{ id: "mode", icon: "swap_horiz", ru: "День / месяц / год", en: "Day / month / year" }] }
+        { type: "sun",      w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary",  bg: "blur", icon: "wb_twilight",       ru: "Солнце",            en: "Sun" },
+        { type: "photo",    w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "secondary", bg: "none", icon: "photo",             ru: "Фото",              en: "Photo",
+          menu: [{ id: "next", icon: "skip_next", ru: "Следующее фото", en: "Next photo" }] },
+        { type: "progress", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 3, tone: "primary",   bg: "blur", icon: "data_usage",        ru: "День и год",        en: "Day & year" }
     ]
     function spec(type) { return catalog.find(c => c.type === type) || catalog[0]; }
     function known(type) { return catalog.some(c => c.type === type); }
+    // старые раскладки: «Циферблат» стал одним из стилей «Часов»
+    function migrate(it) {
+        if (it.type === "analog") { it.type = "clock"; it.extra = Object.assign({ face: "analog" }, it.extra || {}); }
+        return it;
+    }
 
     property ListModel model: ListModel {}     // роли: wid, type, gx, gy, gw, gh, extra (JSON-строка — свои настройки виджета)
     property bool editing: false
     property bool typing: false          // пишем в заметке — рабочему столу нужна клавиатура
     property bool picking: false         // открыт каталог «Добавить виджет»
+    property string tuning: ""           // wid виджета, у которого открыта панель «Настроить»
+    property int rev: 0                  // растёт при каждой правке настроек виджета — для привязок
+    property var backdrop: null          // размытые обои (текстура рабочего стола) — подложка «стекла» виджетов
     property string leaving: ""          // wid виджета, который сейчас уезжает (анимация удаления)
     property string fresh: ""            // wid только что добавленного (анимация появления)
     property int cols: 20                // размер сетки — сообщает Desktop по своему экрану
     property int rows: 10
     property bool loaded: false
     property string file: Config.dir + "/widgets.json"
-    onEditingChanged: { if (editing) typing = false; else picking = false; }
+    onEditingChanged: { if (editing) typing = false; else { picking = false; tuning = ""; } }
+    onPickingChanged: if (picking) tuning = ""
+    onTuningChanged: if (tuning !== "") picking = false
 
     // команда виджету из меню по правому клику (см. menu в каталоге): виджет слушает своё wid
     signal command(string wid, string name)
@@ -102,6 +109,7 @@ Singleton {
     }
     function remove(wid) {
         if (leaving !== "" || indexOf(wid) < 0) return;
+        if (tuning === wid) tuning = "";
         leaving = wid;
         dropTimer.restart();
     }
@@ -147,8 +155,9 @@ Singleton {
         if (i < 0) return;
         const d = extraOf(wid);
         if (JSON.stringify(d[key]) === JSON.stringify(value)) return;
-        d[key] = value;
+        if (value === undefined) delete d[key]; else d[key] = value;
         model.setProperty(i, "extra", JSON.stringify(d));
+        rev++;
         save();
     }
     function fill(list) {
@@ -170,7 +179,7 @@ Singleton {
         onLoaded: {
             try {
                 const d = JSON.parse(text());
-                root.fill((d.items || []).filter(i => i && i.id && root.known(i.type))
+                root.fill((d.items || []).map(i => i && i.id ? root.migrate(i) : i).filter(i => i && i.id && root.known(i.type))
                           .map(i => ({ wid: i.id, type: i.type, gx: i.x | 0, gy: i.y | 0, gw: i.w | 0, gh: i.h | 0, extra: i.extra })));
             } catch (e) { root.fill(root.defaults); }
             root.loaded = true;
@@ -206,6 +215,9 @@ Singleton {
             return i >= 0 && root.resize(wid, root.model.get(i).gx, root.model.get(i).gy, w, h);
         }
         function command(wid: string, name: string): void { root.command(wid, name); }
+        function tune(wid: string): void { root.editing = true; root.tuning = wid; }
+        // настройка виджета: значение — JSON («"blur"», «0.3»); пусто — по умолчанию
+        function set(wid: string, key: string, value: string): void { root.setExtra(wid, key, value === "" ? undefined : JSON.parse(value)); }
         function reset(): void { root.reset(); }
         function list(): string {
             const out = [];

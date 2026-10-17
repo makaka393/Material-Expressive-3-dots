@@ -4,6 +4,9 @@ import QtQuick
 // В ряд — круглые кнопки; квадрат — 2×2 плитки-значки; шире — плитки с подписью и состоянием.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     readonly property bool row: height < 150
     readonly property bool labelled: !row && width >= 400
@@ -33,7 +36,7 @@ Item {
         else Night.cycle();
     }
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "primary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "primary"; radius: Math.min(44, root.height / 2) }
 
     Grid {
         anchors { fill: parent; margins: root.row ? 0 : 14 }

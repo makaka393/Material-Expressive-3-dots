@@ -1,13 +1,19 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 
-// Рабочий стол: виджеты под окнами (слой Bottom — над обоями, под окнами).
+// Рабочий стол: виджеты под окнами (слой Bottom — над обоями, под окнами), на главном экране.
 // Правый клик по пустому месту или по виджету — меню. В режиме правки рабочий стол встаёт над
-// окнами, обои мутнеют, проявляется светящаяся сетка; виджеты перетаскиваются (встают в клетки),
-// меняют размер за ручки по краям, удаляются крестиком, добавляются из каталога снизу.
+// окнами: обои закрывают их и плавно расфокусируются, проявляется светящаяся сетка; виджеты
+// переносятся (встают в клетки), меняют размер за ручки по краям, настраиваются («Настроить»:
+// фон, цвет, прозрачность, стиль — как на Samsung), удаляются крестиком, добавляются из каталога.
+//
+// Размытые обои считаются здесь один раз на смену обоев (MultiEffect) — это подложка «стекла»
+// виджетов (Widgets.backdrop) и фон правки. Своё гладкое размытие вместо блюра Hyprland: без зерна
+// и без ореолов вокруг текста.
 Variants {
-    model: Quickshell.screens
+    model: Quickshell.screens.slice(0, 1)
 
     PanelWindow {
         id: win
@@ -15,11 +21,11 @@ Variants {
         screen: modelData
 
         anchors { top: true; bottom: true; left: true; right: true }
-        exclusionMode: ExclusionMode.Normal          // под баром, а не за ним
+        exclusionMode: ExclusionMode.Ignore          // на весь экран: фон правки закрывает и полосу бара
         color: "transparent"
         WlrLayershell.namespace: "quickshell-desktop"
-        // в правке — над окнами (как домашний экран Pixel в режиме правки), иначе — под ними
-        WlrLayershell.layer: Widgets.editing ? WlrLayer.Top : WlrLayer.Bottom
+        // в правке (и пока фон правки уходит) — над окнами, иначе — под ними
+        WlrLayershell.layer: Widgets.editing || editFx.veil > 0.001 ? WlrLayer.Top : WlrLayer.Bottom
         // клавиатура нужна в правке (Esc) и в заметке. В первый миг — Exclusive: так Hyprland отдаёт
         // фокус сразу, без второго клика; потом OnDemand — клик по окну забирает фокус обратно
         readonly property bool wantKeys: Widgets.editing || Widgets.typing
@@ -28,17 +34,17 @@ Variants {
         Timer { id: grabTimer; interval: 300; onTriggered: win.grab = false }
         WlrLayershell.keyboardFocus: !wantKeys ? WlrKeyboardFocus.None : grab ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand
 
-        // сетка: клетка 96 px и зазор 16 → шаг 112, по центру экрана
+        // сетка: клетка 96 px и зазор 16 → шаг 112, по центру экрана под баром
+        readonly property int top: Theme.barHeight + Theme.outer + 2          // как exclusiveZone бара
         readonly property int edge: 28
         readonly property int gap: 16
         readonly property int pitch: 112
         readonly property int cols: Math.max(1, Math.floor((width - 2 * edge + gap) / pitch))
-        readonly property int rows: Math.max(1, Math.floor((height - 2 * edge + gap) / pitch))
+        readonly property int rows: Math.max(1, Math.floor((height - top - 2 * edge + gap) / pitch))
         readonly property real ox: Math.round((width - (cols * pitch - gap)) / 2)
-        readonly property real oy: Math.round((height - (rows * pitch - gap)) / 2)
-        readonly property bool main: modelData === Quickshell.screens[0]
-        Binding { when: win.main && win.width > 0; target: Widgets; property: "cols"; value: win.cols }
-        Binding { when: win.main && win.height > 0; target: Widgets; property: "rows"; value: win.rows }
+        readonly property real oy: top + Math.round((height - top - (rows * pitch - gap)) / 2)
+        Binding { when: win.width > 0; target: Widgets; property: "cols"; value: win.cols }
+        Binding { when: win.height > 0; target: Widgets; property: "rows"; value: win.rows }
         function px(c) { return ox + c * pitch; }
         function py(r) { return oy + r * pitch; }
         function span(n) { return n * pitch - gap; }
@@ -55,6 +61,34 @@ Variants {
             return null;
         }
 
+        // ── обои: чёткие и размытые (половина разрешения — дальше всё равно размытие)
+        Item {
+            id: wallBox
+            width: Math.max(1, win.width / 2); height: Math.max(1, win.height / 2)
+            Image {
+                anchors.fill: parent
+                source: Locker.frameFile !== "" ? "file://" + Locker.frameFile + "?" + Locker.frameRev : ""
+                fillMode: Image.PreserveAspectCrop          // как awww (crop) и mpvpaper (panscan=1)
+                sourceSize.width: 1280
+                asynchronous: true
+                cache: false
+                smooth: true
+            }
+        }
+        ShaderEffectSource { id: sharpTex; sourceItem: wallBox; hideSource: true; live: true; smooth: true; visible: false; width: 1; height: 1 }
+        MultiEffect {
+            id: wallBlur
+            width: wallBox.width; height: wallBox.height
+            source: sharpTex
+            autoPaddingEnabled: false
+            blurEnabled: true
+            blur: 1.0
+            blurMax: 48
+            saturation: 0.08
+        }
+        ShaderEffectSource { id: blurTex; sourceItem: wallBlur; hideSource: true; live: true; smooth: true; visible: false; width: 1; height: 1 }
+        Binding { target: Widgets; property: "backdrop"; value: blurTex }
+
         // ── пустое место
         MouseArea {
             anchors.fill: parent
@@ -62,6 +96,7 @@ Variants {
             onClicked: m => {
                 if (m.button === Qt.RightButton) { menu.openAt(m.x, m.y, win.widgetAt(m.x, m.y)); return; }
                 if (menu.shown) menu.shown = false;
+                else if (Widgets.tuning !== "") Widgets.tuning = "";
                 else if (Widgets.picking) Widgets.picking = false;
                 else if (Widgets.typing) Widgets.typing = false;
             }
@@ -69,17 +104,26 @@ Variants {
         Item {
             anchors.fill: parent
             focus: Widgets.editing
-            Keys.onEscapePressed: { if (menu.shown) menu.shown = false; else if (Widgets.picking) Widgets.picking = false; else Widgets.editing = false; }
+            Keys.onEscapePressed: {
+                if (menu.shown) menu.shown = false;
+                else if (Widgets.tuning !== "") Widgets.tuning = "";
+                else if (Widgets.picking) Widgets.picking = false;
+                else Widgets.editing = false;
+            }
             HoverHandler { id: hover; enabled: Widgets.editing }
         }
 
-        // ── сетка правки: светящиеся точки волной из центра, у курсора — крупнее (shaders/griddots.frag)
+        // ── фон правки: обои закрывают окна и расфокусируются, поверх — светящаяся сетка
         Item {
-            id: gridFx
+            id: editFx
             anchors.fill: parent
+            property real veil: Widgets.editing ? 1 : 0
+            property real blurAmt: Widgets.editing ? 1 : 0
             property real progress: Widgets.editing ? 1 : 0
-            Behavior on progress { NumberAnimation { duration: Widgets.editing ? 900 : 360; easing.type: Easing.OutCubic } }
-            visible: progress > 0.002
+            Behavior on veil { NumberAnimation { duration: Widgets.editing ? 320 : 380; easing.type: Easing.OutCubic } }
+            Behavior on blurAmt { NumberAnimation { duration: Widgets.editing ? 700 : 300; easing.type: Easing.OutCubic } }
+            Behavior on progress { NumberAnimation { duration: Widgets.editing ? 1000 : 300; easing.type: Easing.OutCubic } }
+            visible: veil > 0.001
             ShaderEffect {
                 anchors.fill: parent
                 fragmentShader: "shaders/griddots.frag.qsb"
@@ -87,11 +131,15 @@ Variants {
                 property vector2d start: Qt.vector2d(win.ox - win.gap / 2, win.oy - win.gap / 2)
                 property vector2d count: Qt.vector2d(win.cols, win.rows)
                 property real pitch: win.pitch
-                property real progress: gridFx.progress
+                property real progress: editFx.progress
                 property vector2d mouse: hover.hovered ? Qt.vector2d(hover.point.position.x, hover.point.position.y) : Qt.vector2d(-9999, -9999)
-                property real dim: 0.22
-                property color tint: Qt.hsla(Theme.primary.hslHue, Math.max(0.4, Theme.primary.hslSaturation), 0.82, 1)
+                property real veil: editFx.veil
+                property real blurAmt: editFx.blurAmt
+                property real dim: 0.28
+                property color tint: Qt.hsla(Theme.primary.hslHue, Math.max(0.35, Theme.primary.hslSaturation), 0.84, 1)
                 property color shade: Theme.surfaceLowest
+                property var sharp: sharpTex
+                property var blurred: blurTex
             }
         }
 
@@ -105,17 +153,17 @@ Variants {
             color: Qt.alpha(ok ? Theme.primary : Theme.error, 0.16)
             border.width: 2
             border.color: Qt.alpha(ok ? Theme.primaryText : Theme.error, 0.8)
-            Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-            Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-            Behavior on width { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-            Behavior on height { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on y { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         }
         // размер в клетках — над призраком (сам призрак почти весь под тянущимся виджетом)
         Rectangle {
             visible: ghost.visible && ghost.size !== ""
             z: 30
             x: ghost.x + ghost.width / 2 - width / 2
-            y: ghost.y >= 60 ? ghost.y - height - 14 : ghost.y + ghost.height + 14
+            y: ghost.y >= win.top + 60 ? ghost.y - height - 14 : ghost.y + ghost.height + 14
             width: sizeLabel.implicitWidth + 26; height: 36; radius: 18
             color: ghost.ok ? Theme.primary : Theme.error
             Label { id: sizeLabel; anchors.centerIn: parent; text: ghost.size; size: 15; weight: 750; color: ghost.ok ? Theme.primaryFg : Theme.surface; elide: Text.ElideNone }
@@ -129,7 +177,26 @@ Variants {
             ghost.visible = true;
         }
 
-        // ── виджеты
+        // ── сами виджеты (общие для стола и превью в каталоге)
+        readonly property var comps: ({ glance: glanceC, clock: clockC, weather: weatherC, forecast: forecastC, music: musicC,
+                                         calendar: calendarC, search: searchC, apps: appsC, toggles: togglesC, system: systemC,
+                                         timer: timerC, note: noteC, sun: sunC, photo: photoC, progress: progressC })
+        Component { id: glanceC; WGlance {} }
+        Component { id: clockC; WClock {} }
+        Component { id: weatherC; WWeather {} }
+        Component { id: forecastC; WForecast {} }
+        Component { id: musicC; WMusic {} }
+        Component { id: calendarC; WCalendar {} }
+        Component { id: searchC; WSearch {} }
+        Component { id: appsC; WApps {} }
+        Component { id: togglesC; WToggles {} }
+        Component { id: systemC; WSystem {} }
+        Component { id: timerC; WTimer {} }
+        Component { id: noteC; WNote {} }
+        Component { id: sunC; WSun {} }
+        Component { id: photoC; WPhoto {} }
+        Component { id: progressC; WProgress {} }
+
         Repeater {
             model: Widgets.model
 
@@ -147,8 +214,9 @@ Variants {
                 readonly property var cfg: { try { return JSON.parse(extra || "{}"); } catch (e) { return {}; } }
                 readonly property bool leaving: Widgets.leaving === wid
                 readonly property bool dragging: drag.drag.active
+                readonly property bool tuned: Widgets.tuning === wid
                 property bool resizing: false
-                readonly property bool hot: Widgets.editing && (hostHover.hovered || resizing || dragging)
+                readonly property bool hot: Widgets.editing && (hostHover.hovered || resizing || dragging || tuned)
 
                 x: win.px(gx)
                 y: win.py(gy)
@@ -204,11 +272,19 @@ Variants {
                     PauseAnimation { duration: pop.delay }
                     NumberAnimation { target: host; property: "appear"; from: 0; to: 1; duration: 620; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
                 }
+                // вход в правку — волной от центра экрана, как «вдох» домашнего экрана
+                property real editK: Widgets.editing ? 1 : 0
+                readonly property int wave: Math.round(Math.hypot(x + width / 2 - win.width / 2, y + height / 2 - win.height / 2) / 9)
+                Behavior on editK {
+                    SequentialAnimation {
+                        PauseAnimation { duration: Widgets.editing ? host.wave : 0 }
+                        NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
+                    }
+                }
 
                 opacity: leaving ? 0 : Math.min(1, appear * 1.6)
-                scale: (leaving ? 0.55 : 0.55 + 0.45 * appear) * (dragging ? 1.04 : Widgets.editing && !resizing ? 0.95 : 1)
+                scale: (leaving ? 0.55 : 0.55 + 0.45 * appear) * (dragging ? 1.04 : resizing ? 1 : 1 - 0.05 * editK)
                 Behavior on opacity { enabled: host.leaving; NumberAnimation { duration: 260; easing.type: Easing.InCubic } }
-                Behavior on scale { enabled: host.leaving || host.appear >= 1; Anim { kind: "fast" } }
 
                 // наведение — шире самого виджета: ручки торчат за край
                 Item {
@@ -217,37 +293,23 @@ Variants {
                 }
 
                 Loader {
+                    id: content
                     anchors.fill: parent
-                    sourceComponent: ({ glance: glanceC, clock: clockC, analog: analogC, weather: weatherC, forecast: forecastC,
-                                        music: musicC, calendar: calendarC, search: searchC, apps: appsC, toggles: togglesC,
-                                        system: systemC, timer: timerC, note: noteC, sun: sunC, photo: photoC, progress: progressC })[host.type] ?? glanceC
-                    // в правке виджеты не нажимаются — только двигаются и тянутся
+                    sourceComponent: win.comps[host.type] ?? glanceC
+                    // в правке виджеты не нажимаются — только двигаются, тянутся и настраиваются
                     enabled: !Widgets.editing
                 }
-                Component { id: glanceC; WGlance { now: clock.date } }
-                Component { id: clockC; WClock { now: clock.date } }
-                Component { id: analogC; WAnalog { now: clock.date; wid: host.wid; cfg: host.cfg } }
-                Component { id: weatherC; WWeather {} }
-                Component { id: forecastC; WForecast {} }
-                Component { id: musicC; WMusic {} }
-                Component { id: calendarC; WCalendar { now: clock.date } }
-                Component { id: searchC; WSearch {} }
-                Component { id: appsC; WApps {} }
-                Component { id: togglesC; WToggles {} }
-                Component { id: systemC; WSystem {} }
-                Component { id: timerC; WTimer {} }
-                Component { id: noteC; WNote { wid: host.wid; cfg: host.cfg } }
-                Component { id: sunC; WSun { now: clock.date } }
-                Component { id: photoC; WPhoto { wid: host.wid; cfg: host.cfg } }
-                Component { id: progressC; WProgress { now: clock.date; wid: host.wid; cfg: host.cfg } }
+                Binding { target: content.item; property: "now"; value: clock.date; when: !!content.item }
+                Binding { target: content.item; property: "wid"; value: host.wid; when: !!content.item }
+                Binding { target: content.item; property: "cfg"; value: host.cfg; when: !!content.item }
 
                 // рамка в правке
                 Rectangle {
                     anchors { fill: parent; margins: -6 }
                     radius: Math.min(50, height / 2)
                     color: "transparent"
-                    border.width: 2
-                    border.color: Qt.alpha(Theme.primaryText, host.hot ? 0.95 : 0.45)
+                    border.width: host.tuned ? 3 : 2
+                    border.color: Qt.alpha(Theme.primaryText, host.hot ? 0.95 : 0.4)
                     opacity: Widgets.editing ? 1 : 0
                     visible: opacity > 0
                     Behavior on opacity { Anim { kind: "effects" } }
@@ -272,6 +334,8 @@ Variants {
                         if (!(cx === host.gx && cy === host.gy)) Widgets.move(host.wid, cx, cy);
                         host.rebind();             // Behavior доведёт виджет до клетки пружинкой
                     }
+                    // клик без переноса — настроить этот виджет
+                    onClicked: Widgets.tuning = Widgets.tuning === host.wid ? "" : host.wid
                 }
 
                 // ручки размера по краям (только по тем осям, по которым виджет тянется)
@@ -317,21 +381,49 @@ Variants {
                     }
                 }
 
-                // убрать
-                Rectangle {
-                    x: -14; y: -14
-                    width: 32; height: 32; radius: 16
-                    color: rmMouse.containsMouse ? Theme.error : Theme.surfaceHighest
-                    border.width: 1; border.color: Qt.alpha(Theme.fg, 0.15)
-                    scale: Widgets.editing && !host.dragging && !host.resizing ? 1 : 0
-                    visible: scale > 0
-                    z: 6
-                    Behavior on scale { Anim { kind: "fast" } }
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Icon { anchors.centerIn: parent; name: "close"; size: 18; color: rmMouse.containsMouse ? Theme.surface : Theme.fg }
-                    MouseArea { id: rmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Widgets.remove(host.wid) }
+                // убрать (слева) и настроить (справа)
+                Repeater {
+                    model: [{ icon: "close", left: true }, { icon: "tune", left: false }]
+                    Rectangle {
+                        id: corner
+                        required property var modelData
+                        x: modelData.left ? -14 : host.width - 18
+                        y: -14
+                        width: 32; height: 32; radius: cm.pressed ? 10 : 16
+                        color: modelData.left ? (cm.containsMouse ? Theme.error : Theme.surfaceHighest)
+                             : (host.tuned || cm.containsMouse ? Theme.primary : Theme.surfaceHighest)
+                        border.width: 1; border.color: Qt.alpha(Theme.fg, 0.15)
+                        scale: Widgets.editing && !host.dragging && !host.resizing ? 1 : 0
+                        visible: scale > 0
+                        z: 6
+                        Behavior on scale { Anim { kind: "fast" } }
+                        Behavior on radius { Anim { kind: "fast" } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Icon { anchors.centerIn: parent; name: corner.modelData.icon; size: 18; fill: 1
+                               color: corner.modelData.left ? (cm.containsMouse ? Theme.surface : Theme.fg)
+                                    : (host.tuned || cm.containsMouse ? Theme.primaryFg : Theme.fg) }
+                        MouseArea { id: cm; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: corner.modelData.left ? Widgets.remove(host.wid) : (Widgets.tuning = host.tuned ? "" : host.wid) }
+                    }
                 }
             }
+        }
+
+        // ── «Настроить»: панель рядом с виджетом
+        WidgetTuner {
+            id: tuner
+            z: 18
+            wid: Widgets.tuning
+            readonly property var it: { Widgets.rev; const i = Widgets.indexOf(Widgets.tuning); return i >= 0 ? Widgets.model.get(i) : null; }
+            readonly property real wx: it ? win.px(it.gx) : 0
+            readonly property real wy: it ? win.py(it.gy) : 0
+            readonly property real ww: it ? win.span(it.gw) : 0
+            x: !it ? x : wx + ww + 28 + width < win.width - 20 ? wx + ww + 28 : Math.max(20, wx - width - 28)
+            y: !it ? y : Math.max(win.top + 16, Math.min(win.height - height - 100, wy - 10))
+            Behavior on x { enabled: tuner.shown; Anim { kind: "spatial" } }
+            Behavior on y { enabled: tuner.shown; Anim { kind: "spatial" } }
+            now: clock.date
+            shown: Widgets.editing && !!it
         }
 
         // ── меню по правому клику: свои пункты виджета под курсором, затем общие
@@ -344,6 +436,7 @@ Variants {
                 if (it) {
                     const sp = Widgets.spec(it.type);
                     const w = it.wid;
+                    out.push({ icon: "tune", t: I18n.t("Настроить", "Customize"), run: () => { Widgets.editing = true; Widgets.tuning = w; } });
                     for (const m of (sp.menu || []))
                         out.push({ icon: m.icon, t: I18n.t(m.ru, m.en), run: () => Widgets.command(w, m.id) });
                     out.push({ icon: "delete", t: I18n.t("Убрать виджет", "Remove widget"), run: () => Widgets.remove(w), danger: true });
@@ -353,7 +446,7 @@ Variants {
                            run: () => { Widgets.editing = !Widgets.editing; } });
                 out.push({ icon: "add_circle", t: I18n.t("Добавить виджет", "Add widget"), run: () => { Widgets.editing = true; Widgets.picking = true; } });
                 out.push({ icon: "wallpaper", t: I18n.t("Обои и цвет темы", "Wallpaper & theme"), run: () => Quickshell.execDetached(["qs", "ipc", "-c", "glass", "call", "picker", "open"]) });
-                out.push({ icon: "tune", t: I18n.t("Настройки оболочки", "Shell settings"), run: () => { Config.settingsOpen = true; } });
+                out.push({ icon: "settings", t: I18n.t("Настройки оболочки", "Shell settings"), run: () => { Config.settingsOpen = true; } });
                 items = out;
                 x = Math.min(mx, win.width - width - 12);
                 y = Math.min(my, win.height - (menuCol.implicitHeight + 16) - 12);
@@ -417,41 +510,48 @@ Variants {
             Repeater {
                 model: [
                     { icon: "add", t: I18n.t("Добавить виджет", "Add widget"), primary: false, run: () => { Widgets.picking = !Widgets.picking; } },
-                    { icon: "check", t: I18n.t("Готово", "Done"), primary: true, run: () => { Widgets.picking = false; Widgets.editing = false; } }
+                    { icon: "check", t: I18n.t("Готово", "Done"), primary: true, run: () => { Widgets.editing = false; } }
                 ]
                 Item {
+                    id: eb
                     required property var modelData
                     width: ebRow.implicitWidth + 40; height: 52
                     scale: ebMouse.pressed ? 0.95 : 1
                     Behavior on scale { Anim { kind: "fast" } }
-                    GlassSurface { anchors.fill: parent; radius: 26; strong: true; visible: !parent.modelData.primary }
-                    Rectangle { anchors.fill: parent; radius: 26; color: Theme.primary; visible: parent.modelData.primary }
+                    Rectangle { anchors.fill: parent; radius: ebMouse.pressed ? 16 : 26; color: Qt.alpha(Theme.surfaceLow, 0.82); visible: !eb.modelData.primary
+                                Behavior on radius { Anim { kind: "fast" } } }
+                    GlassSurface { anchors.fill: parent; radius: 26; strong: true; visible: !eb.modelData.primary }
+                    Rectangle { anchors.fill: parent; radius: ebMouse.pressed ? 16 : 26; color: Theme.primary; visible: eb.modelData.primary
+                                Behavior on radius { Anim { kind: "fast" } } }
                     Row {
                         id: ebRow
                         anchors.centerIn: parent
                         spacing: 8
-                        Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.modelData.icon; size: 20; fill: 1
-                               color: parent.parent.modelData.primary ? Theme.primaryFg : Theme.fg }
-                        Label { anchors.verticalCenter: parent.verticalCenter; text: parent.parent.modelData.t; size: 14; weight: 700; elide: Text.ElideNone
-                                color: parent.parent.modelData.primary ? Theme.primaryFg : Theme.fg }
+                        Icon { anchors.verticalCenter: parent.verticalCenter; name: eb.modelData.icon; size: 20; fill: 1
+                               color: eb.modelData.primary ? Theme.primaryFg : Theme.fg }
+                        Label { anchors.verticalCenter: parent.verticalCenter; text: eb.modelData.t; size: 14; weight: 700; elide: Text.ElideNone
+                                color: eb.modelData.primary ? Theme.primaryFg : Theme.fg }
                     }
-                    MouseArea { id: ebMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.modelData.run() }
+                    MouseArea { id: ebMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: eb.modelData.run() }
                 }
             }
         }
 
-        // ── каталог виджетов
+        // ── каталог виджетов: живые превью (создаются, только пока каталог открыт)
         Item {
             id: sheet
-            readonly property int perRow: Math.max(4, Math.min(8, Math.floor((width - 36 + 12) / 148)))
+            readonly property int perRow: Math.max(4, Math.min(8, Math.floor((width - 36 + 12) / 150)))
+            readonly property int cardW: (width - 36 - 12 * (perRow - 1)) / perRow
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(win.width - 80, 1240)
-            height: 66 + Math.ceil(Widgets.catalog.length / perRow) * 116
-            y: editBar.y - height - 16 + (Widgets.picking ? 0 : 30)
+            width: Math.min(win.width - 80, 1300)
+            height: 66 + Math.ceil(Widgets.catalog.length / perRow) * 172
+            y: editBar.y - height - 16 + (Widgets.picking ? 0 : 40)
             z: 16
             opacity: Widgets.picking && Widgets.editing ? 1 : 0
+            scale: Widgets.picking ? 1 : 0.96
             visible: opacity > 0
             Behavior on y { Anim { kind: "spatial" } }
+            Behavior on scale { Anim { kind: "spatial" } }
             Behavior on opacity { Anim { kind: "effects" } }
 
             MouseArea { anchors.fill: parent }   // клики мимо карточек не уходят на рабочий стол
@@ -459,32 +559,52 @@ Variants {
             GlassSurface { anchors.fill: parent; radius: 36; strong: true }
             Label { x: 26; y: 18; text: I18n.t("Виджеты", "Widgets"); size: 16; weight: 750; color: Theme.primaryText; elide: Text.ElideNone }
             Label { anchors { right: parent.right; rightMargin: 26; top: parent.top; topMargin: 20 }
-                    text: I18n.t("Размер — за ручки по краям виджета", "Resize with the handles on the edges"); size: 12; color: Theme.fgVariant; elide: Text.ElideNone }
+                    text: I18n.t("Размер — за ручки по краям, вид — «Настроить»", "Resize with the edge handles, restyle with Customize"); size: 12; color: Theme.fgVariant; elide: Text.ElideNone }
             Grid {
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18; topMargin: 54 }
                 columns: sheet.perRow
                 spacing: 12
                 Repeater {
-                    model: Widgets.catalog
+                    model: Widgets.picking ? Widgets.catalog : []
                     Rectangle {
                         id: cat
                         required property var modelData
-                        width: (sheet.width - 36 - 12 * (sheet.perRow - 1)) / sheet.perRow
-                        height: 104
-                        radius: catMouse.pressed ? 18 : 26
-                        color: catMouse.containsMouse ? Qt.alpha(Theme.primary, 0.22) : Theme.glassChip
+                        required property int index
+                        width: sheet.cardW
+                        height: 160
+                        radius: catMouse.pressed ? 18 : 28
+                        color: catMouse.containsMouse ? Qt.alpha(Theme.primary, 0.2) : Theme.glassChip
                         Behavior on radius { Anim { kind: "fast" } }
                         Behavior on color { ColorAnimation { duration: 150 } }
+                        // карточки проявляются по очереди
+                        opacity: 0
+                        Component.onCompleted: opacity = 1
+                        Behavior on opacity { SequentialAnimation { PauseAnimation { duration: cat.index * 22 } NumberAnimation { duration: 260 } } }
                         scale: catMouse.pressed ? 0.95 : 1
                         Behavior on scale { Anim { kind: "fast" } }
-                        Column {
-                            anchors.centerIn: parent
-                            width: parent.width - 16
-                            spacing: 6
-                            Icon { anchors.horizontalCenter: parent.horizontalCenter; name: cat.modelData.icon; size: 30; fill: 1; color: Theme.primaryText }
-                            Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; text: I18n.t(cat.modelData.ru, cat.modelData.en); size: 13; weight: 650 }
-                            Label { anchors.horizontalCenter: parent.horizontalCenter; text: cat.modelData.w + " × " + cat.modelData.h; size: 11; color: Theme.fgVariant; elide: Text.ElideNone }
+
+                        // превью: настоящий виджет размера по умолчанию, уменьшенный в карточку
+                        Item {
+                            id: pv
+                            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top; topMargin: 10 }
+                            width: parent.width - 20; height: 104
+                            readonly property real w0: win.span(cat.modelData.w)
+                            readonly property real h0: win.span(cat.modelData.h)
+                            Loader {
+                                id: pvl
+                                width: pv.w0; height: pv.h0
+                                anchors.centerIn: parent
+                                scale: Math.min(pv.width / pv.w0, pv.height / pv.h0)
+                                enabled: false
+                                sourceComponent: win.comps[cat.modelData.type] ?? null
+                            }
+                            Binding { target: pvl.item; property: "now"; value: clock.date; when: !!pvl.item }
                         }
+                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 28 }
+                                width: parent.width - 12; horizontalAlignment: Text.AlignHCenter
+                                text: I18n.t(cat.modelData.ru, cat.modelData.en); size: 13; weight: 650 }
+                        Label { anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 10 }
+                                text: cat.modelData.w + " × " + cat.modelData.h; size: 11; color: Theme.fgVariant; elide: Text.ElideNone }
                         MouseArea { id: catMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: { Widgets.add(cat.modelData.type); Widgets.picking = false; } }
                     }

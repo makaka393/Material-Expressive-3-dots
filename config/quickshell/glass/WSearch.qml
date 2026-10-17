@@ -4,8 +4,11 @@ import QtQuick
 // и ассистент (лаунчер сразу в нужном режиме).
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "neutral"; radius: height / 2 }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "neutral"; radius: height / 2 }
 
     MouseArea {
         anchors.fill: parent

@@ -28,7 +28,7 @@ Item {
     readonly property string remain: mode === "day" ? (24 - current) + I18n.t(" ч осталось", "h left")
                                  : (total - current) + I18n.t(" дн. осталось", " days left")
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "primary"; radius: 40 }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "primary"; radius: 40 }
 
     Item {
         id: head

@@ -1,45 +1,36 @@
 import QtQuick
 
-// Большие часы как у Pixel. Квадратный — часы над минутами, широкий — «ЧЧ:ММ» в строку,
-// а если остаётся место — ещё и дата. Размер цифр — от размера виджета.
+// Часы — любой из циферблатов AOD (формы, стрелки, орбита, точки, планеты, горизонт, сегменты),
+// по умолчанию тот же, что выбран для AOD. Стиль — в «Настроить». Без подложки по умолчанию:
+// циферблат прямо на обоях, как «Коротко о главном». Циферблат вписывается в виджет целиком;
+// при появлении и смене стиля он собирается своей анимацией (как при входе в AOD).
 Item {
     id: root
     property date now: new Date()
-    function pad(n) { return (n < 10 ? "0" : "") + n; }
+    property string wid: ""
+    property var cfg: ({})
 
-    readonly property bool wide: width >= height * 1.7
-    readonly property bool dated: wide ? height >= 190 : height >= 300
+    readonly property string face: Config.aodFaces.indexOf(cfg.face) >= 0 ? cfg.face : Config.aodFace
+    readonly property bool dated: height >= 300 && width >= 300
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "primary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "primary"; defaultBg: "none"; radius: Math.min(44, root.height / 2) }
 
-    readonly property color strongColor: Theme.m3 ? ws.fg : ws.accent
-    readonly property color weakColor: Qt.alpha(ws.fg, 0.8)
-
-    // ── стопкой
-    Column {
+    AodClock {
+        id: clock
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: root.dated ? -root.height * 0.05 : 0
-        visible: !root.wide
-        spacing: -sz * 0.2
-        readonly property real sz: Math.min(root.height * (root.dated ? 0.34 : 0.4), root.width * 0.55)
-        WDigits { anchors.horizontalCenter: parent.horizontalCenter; text: root.pad(root.now.getHours()); font.pixelSize: parent.sz; strongColor: root.strongColor; weakColor: root.weakColor }
-        WDigits { anchors.horizontalCenter: parent.horizontalCenter; text: root.pad(root.now.getMinutes()); font.pixelSize: parent.sz; strongColor: root.strongColor; weakColor: root.weakColor; strong: false }
+        style: root.face
+        k: 0.5
+        showDate: root.dated
+        now: root.now
+        property real pp: 0
+        p: pp
+        // вписать целиком (k задаёт «чертёж», масштаб — в размер виджета)
+        readonly property real inset: ws.bare ? 8 : 28
+        scale: implicitWidth > 0 && implicitHeight > 0
+               ? Math.min((root.width - 2 * inset) / implicitWidth, (root.height - 2 * inset) / implicitHeight) : 1
+        Behavior on scale { enabled: clock.pp >= 1; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+        NumberAnimation { id: build; target: clock; property: "pp"; from: 0; to: 1; duration: 1500; easing.type: Easing.Linear }
+        Component.onCompleted: build.start()
     }
-    // ── в строку
-    Row {
-        anchors.centerIn: parent
-        anchors.verticalCenterOffset: root.dated ? -root.height * 0.08 : 0
-        visible: root.wide
-        readonly property real sz: Math.min(root.height * (root.dated ? 0.5 : 0.66), root.width / 3.4)
-        WDigits { text: root.pad(root.now.getHours()); font.pixelSize: parent.sz; strongColor: root.strongColor; weakColor: root.weakColor }
-        WDigits { text: ":"; font.pixelSize: parent.sz; strongColor: root.strongColor; weakColor: root.weakColor; strong: false; opacity: 0.7 }
-        WDigits { text: root.pad(root.now.getMinutes()); font.pixelSize: parent.sz; strongColor: root.strongColor; weakColor: root.weakColor; strong: false }
-    }
-    Label {
-        visible: root.dated
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.height * 0.1 }
-        text: I18n.longDate(root.now)
-        size: Math.max(13, Math.min(22, root.height * 0.08)); weight: 600
-        color: ws.fgDim; elide: Text.ElideNone
-    }
+    onFaceChanged: build.restart()
 }

@@ -5,12 +5,15 @@ import QtQuick.Shapes
 // идёт — кольцо с остатком, «+1 мин» и стоп. В один ряд — полоска вместо кольца.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     readonly property bool row: height < 150
     readonly property var presets: [1, 3, 5, 10, 15, 25]
     readonly property int nPresets: root.row ? Math.max(2, Math.min(6, Math.floor((width - 90) / 62))) : (width >= 400 ? 6 : 4)
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
 
     property real frac: Countdown.frac
     Behavior on frac { NumberAnimation { duration: 500 } }

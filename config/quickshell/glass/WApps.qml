@@ -6,6 +6,9 @@ import Quickshell.Widgets
 // Пока статистики нет — первые по алфавиту. Клик — запустить.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     readonly property int cell: 84
     readonly property int perRow: Math.max(1, Math.floor((width - 16) / cell))
@@ -30,7 +33,7 @@ Item {
         else e.execute();
     }
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "neutral"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "neutral"; radius: Math.min(44, root.height / 2) }
 
     Grid {
         anchors.centerIn: parent

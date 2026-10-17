@@ -4,12 +4,15 @@ import QtQuick
 // температура, значок и разброс за день; шире — ещё и прогноз по часам; в три ряда — по дням.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     readonly property bool row: height < 150
     readonly property bool wide: !row && width >= 420
     readonly property bool tall: !row && height >= 300
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "secondary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "secondary"; radius: Math.min(44, root.height / 2) }
 
     // ── в один ряд
     Row {

@@ -4,11 +4,13 @@ import QtQuick
 // от 3×3 — месяц сеткой (та же, что в острове: стрелки и колёсико листают месяцы).
 Item {
     id: root
+    property string wid: ""
+    property var cfg: ({})
     property date now: new Date()
 
     readonly property bool month: width >= 300 && height >= 300
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "neutral"; radius: 40 }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "neutral"; radius: 40 }
 
     CalendarCard {
         anchors.fill: parent

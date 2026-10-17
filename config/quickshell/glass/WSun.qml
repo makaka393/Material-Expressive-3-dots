@@ -5,6 +5,8 @@ import QtQuick.Shapes
 // В один ряд — только ближайшее событие. Считается на месте (Sun.qml), без сети.
 Item {
     id: root
+    property string wid: ""
+    property var cfg: ({})
     property date now: new Date()
 
     readonly property var t: Sun.times(now)
@@ -19,7 +21,7 @@ Item {
         return hh > 0 ? hh + I18n.t(" ч ", "h ") + mm + I18n.t(" мин", "m") : mm + I18n.t(" мин", " min");
     }
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
 
     // ── в один ряд
     Row {

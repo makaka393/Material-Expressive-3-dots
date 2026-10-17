@@ -6,6 +6,9 @@ import Quickshell.Widgets
 // Ничего не играет — тихая заглушка.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
     readonly property var pl: Players.active
     readonly property bool has: !!pl && (pl.trackTitle ?? "") !== ""
     readonly property bool playing: has && pl.isPlaying
@@ -15,7 +18,7 @@ Item {
     readonly property bool square: !row && width < height * 1.45
     readonly property bool tall: !row && !square && height >= 300
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "tertiary"; radius: Math.min(44, root.height / 2) }
 
     // ── квадрат: обложка во весь виджет
     ClippingRectangle {

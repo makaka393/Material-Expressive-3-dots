@@ -5,6 +5,9 @@ import QtQuick.Shapes
 // Пока виджет на столе, Sys опрашивает систему раз в 4 секунды.
 Item {
     id: root
+    property date now: new Date()
+    property string wid: ""
+    property var cfg: ({})
 
     Component.onCompleted: Sys.widgets++
     Component.onDestruction: Sys.widgets--
@@ -18,7 +21,7 @@ Item {
     readonly property bool roomy: !row && width >= 400
     readonly property bool bars: !row && !roomy
 
-    WidgetSurface { id: ws; anchors.fill: parent; tone: "secondary"; radius: Math.min(44, root.height / 2) }
+    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "secondary"; radius: Math.min(44, root.height / 2) }
 
     // ── квадрат: строки «значок · название · %» с полоской
     Column {
