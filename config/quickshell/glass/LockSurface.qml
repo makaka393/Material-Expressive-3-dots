@@ -21,13 +21,14 @@ Item {
 
     // Пробуждение из AOD (Locker.wake): без заставки — часы плавно переезжают с места, где были
     // на AOD, а тёмная пелена AOD рассеивается. Иначе — обычное появление.
-    readonly property bool wake: !preview && Locker.wake
-    property real wakeT: wake ? 0 : 1
-    NumberAnimation on wakeT { from: 0; to: 1; duration: 1100; easing.type: Easing.OutCubic; running: s.wake }
+    // (не «wake»: так называется функция ниже, которая показывает поле пароля)
+    readonly property bool waking: !preview && Locker.wake
+    property real wakeT: waking ? 0 : 1
+    NumberAnimation on wakeT { from: 0; to: 1; duration: 1100; easing.type: Easing.OutCubic; running: s.waking }
 
     // появление
-    property real p: wake ? 1 : 0
-    NumberAnimation on p { from: 0; to: 1; duration: 1500; running: !s.wake }
+    property real p: waking ? 1 : 0
+    NumberAnimation on p { from: 0; to: 1; duration: 1500; running: !s.waking }
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -71,8 +72,9 @@ Item {
     Item {
         id: bg
         anchors.fill: parent
-        layer.enabled: true
-        visible: false
+        // в покое обои рисуются напрямую; слой (источник для блюра) — только пока блюр нужен
+        layer.enabled: blurFx.visible
+        visible: !blurFx.visible
         Rectangle { anchors.fill: parent; color: Theme.surfaceLowest }
         Image {
             anchors.fill: parent
@@ -85,7 +87,10 @@ Item {
         Loader {
             id: video
             anchors.fill: parent
-            active: s.isVideo
+            // Видео — только в покое. При вводе пароля оно всё равно под блюром, а декодируется
+            // процессором (аппаратное декодирование не заводится) и вместе с полноэкранным
+            // блюром на каждом кадре тормозило ввод. Под блюром остаётся неподвижный кадр.
+            active: s.isVideo && !s.active
             source: "VideoBg.qml"
             onLoaded: item.source = "file://" + s.wallFile
             opacity: item && item.playing ? 1 : 0
@@ -93,7 +98,9 @@ Item {
         }
     }
     MultiEffect {
+        id: blurFx
         anchors.fill: parent
+        visible: blur > 0.001
         source: bg
         blurEnabled: true
         blurMax: 64
@@ -106,7 +113,7 @@ Item {
         anchors.fill: parent
         color: "black"
         visible: opacity > 0
-        opacity: s.wake ? Config.aodDim * (1 - s.wakeT) : 0
+        opacity: s.waking ? Config.aodDim * (1 - s.wakeT) : 0
     }
     // затемнение для читаемости: снизу сильнее, в режиме ввода — везде
     Rectangle {
