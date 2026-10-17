@@ -66,5 +66,7 @@ PanelWindow {
         function close(): void { win.open = false; }
         function emoji(): void { win.show(":"); }
         function ask(): void { win.show("?"); }
+        // открыть лаунчер и сразу спросить ассистента
+        function askText(text: string): void { win.show("?" + text); Assistant.ask(text); }
     }
 }

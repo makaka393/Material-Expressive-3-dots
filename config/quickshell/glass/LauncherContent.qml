@@ -7,7 +7,7 @@ import "calc.js" as Calc
 
 // Лаунчер (вместо rofi): строка поиска + результаты.
 //   просто текст — приложения (+ пример посчитается, + поиск в интернете)
-//   =  калькулятор     :  эмодзи     ?  вопрос ассистенту (Gemma — подключим позже)
+//   =  калькулятор     :  эмодзи     ?  вопрос ассистенту (Claude, без сети — локальная модель; см. Assistant.qml)
 // Ошибся раскладкой («ашкуащч») или пишешь по-русски («телеграм») — всё равно найдёт.
 Item {
     id: root
@@ -292,7 +292,7 @@ Item {
         if (mode === "emoji") { if (emojis[sel]) pickEmoji(emojis[sel]); return; }
         const r = results[sel];
         if (r && r.run) r.run();
-        else if (r && r.kind === "ai") root.nudge();
+        else if (r && r.kind === "ai") { if (r.title.trim() !== "") Assistant.ask(r.title); else root.nudge(); }
     }
 
     Column {
@@ -494,7 +494,7 @@ Item {
                     }
                 }
 
-                // ── вопрос ассистенту (заглушка, пока Gemma не подключена)
+                // ── вопрос ассистенту: Enter — спросить, ответ приходит сюда же по кусочкам
                 Rectangle {
                     id: aiCard
                     visible: row.kind === "ai"
@@ -502,6 +502,9 @@ Item {
                     implicitHeight: aiCol.implicitHeight + 32
                     radius: 24
                     color: Qt.alpha(Theme.tertiaryContainer, Theme.m3 ? 1 : 0.55)
+                    Behavior on implicitHeight { Anim { kind: "fast" } }
+                    readonly property bool mine: Assistant.heard !== "" && Assistant.heard === (row.modelData.title || "").trim() && !Assistant.voice
+                    readonly property bool working: mine && Assistant.busy && Assistant.answer === ""
                     Connections { target: root; function onNudge() { shake.restart(); } }
                     SequentialAnimation {
                         id: shake
@@ -514,32 +517,67 @@ Item {
                         x: 18; y: 16
                         width: parent.width - 36
                         spacing: 8
-                        Row {
-                            spacing: 10
+                        Item {
+                            width: parent.width; height: 32
                             Rectangle {
-                                width: 32; height: 32; radius: 11
+                                id: aiBadge
+                                width: 32; height: 32; radius: aiCard.working ? 16 : 11
                                 color: Theme.tertiary
+                                Behavior on radius { Anim { kind: "fast" } }
                                 Icon { anchors.centerIn: parent; name: "auto_awesome"; fill: 1; size: 19; color: Theme.surface }
-                                RotationAnimation on rotation { from: 0; to: 360; duration: 9000; loops: Animation.Infinite; running: aiCard.visible }
+                                RotationAnimation on rotation { from: 0; to: 360; duration: aiCard.working ? 1600 : 9000; loops: Animation.Infinite; running: aiCard.visible }
                             }
                             Column {
-                                anchors.verticalCenter: parent.verticalCenter
-                                Label { text: I18n.t("Ассистент · Gemma", "Assistant · Gemma"); size: 14; weight: 650; color: Theme.tertiaryContainerFg }
-                                Label { text: I18n.t("локально, llama.cpp", "local, llama.cpp"); size: 11; color: Qt.alpha(Theme.tertiaryContainerFg, 0.7) }
+                                anchors { left: aiBadge.right; leftMargin: 10; verticalCenter: parent.verticalCenter; right: aiTools.left; rightMargin: 8 }
+                                Label { text: I18n.t("Ассистент", "Assistant"); size: 14; weight: 650; color: Theme.tertiaryContainerFg; elide: Text.ElideNone }
+                                Label {
+                                    width: parent.width
+                                    text: !Assistant.online ? I18n.t("служба не запущена", "service is not running")
+                                        : aiCard.mine && Assistant.backend === "local" ? I18n.t("ответила локальная модель · Qwen3.5", "answered locally · Qwen3.5")
+                                        : aiCard.mine && Assistant.backend === "claude" ? "Claude · " + Assistant.cfg.model.replace("claude-", "").replace(/-(\d)-(\d)$/, " $1.$2")
+                                        : Assistant.hasKey ? "Claude · " + Assistant.cfg.model.replace("claude-", "").replace(/-(\d)-(\d)$/, " $1.$2")
+                                        : I18n.t("нет ключа Claude — ответит локальная модель", "no Claude key — the local model will answer")
+                                    size: 11; color: Qt.alpha(Theme.tertiaryContainerFg, 0.7)
+                                }
+                            }
+                            Row {
+                                id: aiTools
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                spacing: 2
+                                visible: aiCard.mine && Assistant.answer !== ""
+                                IconButton { icon: "volume_up"; size: 32; iconSize: 18; color: Theme.tertiaryContainerFg; onClicked: Assistant.say(Assistant.answer) }
+                                IconButton { icon: "content_copy"; size: 32; iconSize: 18; color: Theme.tertiaryContainerFg
+                                             onClicked: Quickshell.execDetached(["wl-copy", Assistant.answer]) }
                             }
                         }
                         Label {
                             width: parent.width
-                            visible: row.modelData.title !== ""
+                            visible: row.modelData.title !== "" && !aiCard.mine
                             text: "«" + row.modelData.title + "»"
                             size: 15; weight: 500
                             wrapMode: Text.Wrap; elide: Text.ElideNone; maximumLineCount: 3
                             color: Theme.tertiaryContainerFg
                         }
+                        // ответ
+                        Text {
+                            width: parent.width
+                            visible: aiCard.mine && (Assistant.answer !== "" || Assistant.error !== "")
+                            text: Assistant.error !== "" && Assistant.answer === "" ? Assistant.error : Assistant.answer
+                            textFormat: Text.MarkdownText
+                            wrapMode: Text.Wrap
+                            color: Theme.tertiaryContainerFg
+                            font.family: Theme.font
+                            font.pixelSize: 15
+                            font.variableAxes: ({ "wght": 450, "ROND": 100 })
+                            lineHeight: 1.15
+                            onLinkActivated: link => Quickshell.execDetached(["xdg-open", link])
+                        }
                         Label {
                             width: parent.width
-                            text: I18n.t("Скоро здесь будет ответ локальной модели. Пока можно спросить в интернете ↓",
-                                         "Soon the local model will answer here. For now — search the web ↓")
+                            visible: !aiCard.mine || aiCard.working
+                            text: aiCard.working ? I18n.t("Думаю…", "Thinking…")
+                                : row.modelData.title !== "" ? I18n.t("Enter — спросить. Голосом — Super+A", "Enter — ask. By voice — Super+A")
+                                : I18n.t("Напиши вопрос после «?». Голосом — Super+A", "Type a question after “?”. By voice — Super+A")
                             size: 13; weight: 450
                             wrapMode: Text.Wrap; elide: Text.ElideNone
                             color: Qt.alpha(Theme.tertiaryContainerFg, 0.8)

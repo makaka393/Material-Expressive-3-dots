@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 800 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -192,6 +192,7 @@ Item {
             Repeater {
                 model: [{ id: "look", icon: "palette", t: I18n.t("Оформление", "Appearance") },
                         { id: "aod", icon: "bedtime", t: "Always On Display" },
+                        { id: "assistant", icon: "auto_awesome", t: I18n.t("Ассистент", "Assistant") },
                         { id: "lang", icon: "translate", t: I18n.t("Язык", "Language") }]
                 Rectangle {
                     id: navItem
@@ -696,6 +697,118 @@ Item {
                             onToggled: wg.flip()
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ── справа: раздел «Ассистент» (настройки службы glass-assistant — Assistant.cfg)
+    Item {
+        id: asPage
+        visible: root.section === "assistant"
+        anchors { top: parent.top; bottom: parent.bottom; left: nav.right; right: parent.right; margins: 24; leftMargin: 8 }
+
+        IconButton {
+            anchors { top: parent.top; right: parent.right; topMargin: -6; rightMargin: -6 }
+            icon: "close"; size: 40; iconSize: 22
+            onClicked: root.close()
+        }
+        Column {
+            width: parent.width - 60
+            spacing: 4
+            Label { text: I18n.t("Ассистент", "Assistant"); size: 26; weight: 750; elide: Text.ElideNone }
+            Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
+                    text: I18n.t("Super+A — спросить голосом, Super+Space и «?» — текстом. Думает Claude, без сети — локальная модель.",
+                                 "Super+A — ask by voice, Super+Space then “?” — by text. Claude thinks; offline — a local model.") }
+        }
+
+        // ── состояние службы и ключа
+        Rectangle {
+            id: asStatus
+            y: 84
+            width: parent.width; height: 56
+            radius: 20
+            color: Assistant.online && Assistant.hasKey ? Theme.primaryContainer : Theme.glassChip
+            Icon { id: asIcon; anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                   name: !Assistant.online ? "power_off" : Assistant.hasKey ? "cloud_done" : "key_off"; size: 22; fill: 1
+                   color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg }
+            Column {
+                anchors { left: asIcon.right; leftMargin: 12; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                Label { width: parent.width; size: 14; weight: 700; color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg
+                        text: !Assistant.online ? I18n.t("Служба не запущена", "Service is not running")
+                            : Assistant.hasKey ? I18n.t("Работает · Claude подключён", "Running · Claude connected")
+                            : I18n.t("Работает · без ключа Claude — отвечает локальная модель", "Running · no Claude key — the local model answers") }
+                Label { width: parent.width; size: 12; color: Assistant.online && Assistant.hasKey ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
+                        text: !Assistant.online ? "systemctl --user start glass-assistant"
+                            : I18n.t("Ключ: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…", "Key: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…") }
+            }
+        }
+
+        Column {
+            anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
+            spacing: 10
+            Label { text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            TunerChoice {
+                width: parent.width
+                options: [{ id: "claude-opus-5-5", icon: "psychology", t: "Opus 5.5" },
+                          { id: "claude-sonnet-5-5", icon: "bolt", t: "Sonnet 5.5" },
+                          { id: "claude-haiku-5-5", icon: "speed", t: "Haiku 5.5" }]
+                current: Assistant.cfg.model
+                onPicked: v => Assistant.cfg.model = v
+            }
+            Label { topPadding: 6; text: I18n.t("Где думать", "Where to think"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            TunerChoice {
+                width: parent.width
+                options: [{ id: "auto", icon: "auto_mode", t: I18n.t("Авто", "Auto") },
+                          { id: "claude", icon: "cloud", t: "Claude" },
+                          { id: "local", icon: "memory", t: I18n.t("Локально", "Local") }]
+                current: Assistant.cfg.backend
+                onPicked: v => Assistant.cfg.backend = v
+            }
+            Item {
+                width: parent.width; height: 30
+                Label { anchors { left: parent.left; bottom: parent.bottom } text: I18n.t("Голос", "Voice"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                Rectangle {
+                    anchors { right: parent.right; bottom: parent.bottom }
+                    width: hearRow.implicitWidth + 24; height: 30; radius: hearMouse.pressed ? 10 : 15
+                    color: Theme.primary
+                    Behavior on radius { Anim { kind: "fast" } }
+                    Row { id: hearRow; anchors.centerIn: parent; spacing: 6
+                          Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
+                          Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
+                    MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: Assistant.say(I18n.t("Привет! Так я буду тебе отвечать.", "Hi! This is how I will answer you.")) }
+                }
+            }
+            TunerChoice {
+                width: parent.width
+                options: [{ id: "xenia", t: "Ксения" }, { id: "kseniya", t: "Ксюша" }, { id: "baya", t: "Бая" },
+                          { id: "aidar", t: "Айдар" }, { id: "eugene", t: "Евгений" }]
+                current: Assistant.cfg.voice
+                onPicked: v => Assistant.cfg.voice = v
+            }
+            Repeater {
+                model: [
+                    { k: "speakVoice", icon: "record_voice_over", t: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") },
+                    { k: "speakTyped", icon: "keyboard", t: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") },
+                    { k: "wake", icon: "hearing", t: I18n.t("Слово-активатор: «Гласс», «Ассистент», «Джарвис»", "Wake word: “Glass”, “Assistant”, “Jarvis”") }
+                ]
+                Rectangle {
+                    id: asOpt
+                    required property var modelData
+                    readonly property bool on: !!Assistant.cfg[modelData.k]
+                    width: parent.width; height: 52
+                    radius: on ? 18 : 26
+                    color: on ? Theme.secondaryContainer : Theme.glassChip
+                    Behavior on radius { Anim { kind: "fast" } }
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Icon { id: asOptIcon; anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                           name: asOpt.modelData.icon; size: 20; fill: asOpt.on ? 1 : 0; color: asOpt.on ? Theme.secondaryContainerFg : Theme.fg }
+                    Label { anchors { left: asOptIcon.right; leftMargin: 12; right: asSw.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: asOpt.modelData.t; size: 14; weight: 600; color: asOpt.on ? Theme.secondaryContainerFg : Theme.fg }
+                    M3Switch { id: asSw; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                               scale: 0.85; checked: asOpt.on; onToggled: Assistant.cfg[asOpt.modelData.k] = !asOpt.on }
+                    MouseArea { anchors.fill: parent; z: -1; cursorShape: Qt.PointingHandCursor; onClicked: Assistant.cfg[asOpt.modelData.k] = !asOpt.on }
                 }
             }
         }

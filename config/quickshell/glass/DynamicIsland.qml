@@ -8,6 +8,7 @@ import Quickshell.Widgets
 //  weather — клик по часам/погоде: прогноз
 //  toast   — всплывашка (Activity): громкость, яркость, тема, скриншот, запись…
 //  идёт запись экрана — в компактном виде слева красная точка с таймером (клик — стоп)
+//  assistant — голосовой ассистент (Super+A): слушаю → распознаю → думаю → отвечаю
 Island {
     id: root
     objectName: "island"
@@ -16,18 +17,20 @@ Island {
     readonly property var player: Players.active
     readonly property bool hasPlayer: player !== null && (player.trackTitle ?? "") !== ""
 
+    // ассистент важнее всего: с ним сейчас разговаривают голосом
+    readonly property bool assist: Assistant.showing && Assistant.voice && mode === "compact"
     // уведомление важнее всплывашки; пока открыт плеер/погода — не перебиваем
-    readonly property bool notif: Notifs.popup !== null && mode === "compact"
+    readonly property bool notif: Notifs.popup !== null && mode === "compact" && !assist
     property var lastNotif: null
     Connections { target: Notifs; function onPopupChanged() { if (Notifs.popup) root.lastNotif = Notifs.popup; } }
-    readonly property bool toast: Activity.shown && mode === "compact" && !notif
+    readonly property bool toast: Activity.shown && mode === "compact" && !notif && !assist
     readonly property bool toastImage: Activity.image !== ""
 
-    strong: mode !== "compact" || toast || notif
-    targetWidth: notif ? 460 : toast ? (toastImage ? 400 : 360)
+    strong: mode !== "compact" || toast || notif || assist
+    targetWidth: assist ? 540 : notif ? 460 : toast ? (toastImage ? 400 : 360)
                : mode === "media" || mode === "weather" ? Math.max(520, compact.implicitWidth + 30)
                : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
-    targetHeight: notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
+    targetHeight: assist ? Math.max(68, assistBox.implicitHeight + 26) : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
                 : mode === "media" ? 184 : mode === "weather" ? 196 : mode === "calendar" ? 328 : Theme.barHeight
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
@@ -57,8 +60,8 @@ Island {
         y: (Theme.barHeight - height) / 2
         height: 28
         spacing: 12
-        opacity: root.mode === "compact" && !root.toast && !root.notif ? 1 : 0
-        scale: root.mode === "compact" && !root.toast && !root.notif ? 1 : 0.86
+        opacity: root.mode === "compact" && !root.toast && !root.notif && !root.assist ? 1 : 0
+        scale: root.mode === "compact" && !root.toast && !root.notif && !root.assist ? 1 : 0.86
         visible: opacity > 0
         Behavior on opacity { Anim { kind: "effects" } }
         Behavior on scale { Anim { kind: "fast" } }
@@ -206,6 +209,85 @@ Island {
                 anchors.verticalCenter: parent.verticalCenter
                 playing: root.player?.isPlaying ?? false
             }
+        }
+    }
+
+    // ───────────── ассистент ─────────────
+    Item {
+        id: assistBox
+        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 14; rightMargin: 12 }
+        implicitHeight: Math.max(44, assistCol.implicitHeight)
+        height: implicitHeight
+        opacity: root.assist ? 1 : 0
+        scale: root.assist ? 1 : 0.9
+        visible: opacity > 0
+        Behavior on opacity { Anim { kind: "effects"; duration: root.assist ? 280 : 160 } }
+        Behavior on scale { Anim { kind: "spatial" } }
+        readonly property string st: Assistant.state
+
+        // «шар»: слушает — дышит в такт голосу, думает — крутится печенькой, говорит — пульсирует клевером
+        Item {
+            id: orb
+            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+            width: 44; height: 44
+            AodShape {
+                anchors.fill: parent
+                kind: assistBox.st === "thinking" || assistBox.st === "transcribing" ? "cookie" : assistBox.st === "speaking" ? "clover" : "circle"
+                lobes: 9
+                color: Assistant.error !== "" && !Assistant.busy ? Theme.error : Theme.primary
+                scale: assistBox.st === "listening" ? 0.78 + Math.min(1, Assistant.level * 2.2) * 0.32 : 1
+                Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+                RotationAnimation on rotation {
+                    from: 0; to: 360; duration: 2400; loops: Animation.Infinite
+                    running: root.assist && (assistBox.st === "thinking" || assistBox.st === "transcribing")
+                }
+                SequentialAnimation on opacity {
+                    running: root.assist && assistBox.st === "speaking"
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.7; duration: 520; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1; duration: 520; easing.type: Easing.InOutSine }
+                }
+            }
+            Icon {
+                anchors.centerIn: parent
+                name: Assistant.error !== "" && !Assistant.busy ? "error" : assistBox.st === "listening" ? "mic"
+                    : assistBox.st === "speaking" ? "graphic_eq" : assistBox.st === "idle" ? "check" : "auto_awesome"
+                size: 22; fill: 1; color: Theme.primaryFg
+            }
+        }
+        Column {
+            id: assistCol
+            anchors { left: orb.right; leftMargin: 14; right: assistBtn.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+            spacing: 2
+            Label {
+                width: parent.width
+                text: assistBox.st === "listening" ? I18n.t("Слушаю…", "Listening…")
+                    : assistBox.st === "transcribing" ? I18n.t("Распознаю…", "Transcribing…")
+                    : Assistant.heard !== "" ? "«" + Assistant.heard + "»"
+                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…") : I18n.t("Ассистент", "Assistant")
+                size: 14; weight: 700
+            }
+            Text {
+                width: parent.width
+                visible: text !== ""
+                font.family: Theme.font
+                font.pixelSize: 13
+                font.variableAxes: ({ "wght": 500, "ROND": 100 })
+                text: Assistant.error !== "" ? Assistant.error
+                    : Assistant.answer !== "" ? (Assistant.answer.length > 240 ? "…" + Assistant.answer.slice(-240) : Assistant.answer)
+                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…")
+                    : assistBox.st === "listening" ? I18n.t("Говори — пауза закончит вопрос", "Speak — a pause ends the question") : ""
+                color: Theme.fgVariant
+                wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight
+            }
+        }
+        IconButton {
+            id: assistBtn
+            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+            icon: Assistant.busy ? "stop" : "close"
+            size: 38; iconSize: 20
+            bg: Assistant.busy ? Theme.glassChip : "transparent"
+            onClicked: Assistant.busy ? Assistant.stop() : Assistant.dismiss()
         }
     }
 
