@@ -3,12 +3,15 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Нагрузка на систему для шторки: процессор, память, видеокарта (NVIDIA).
-// Опрашивается только пока шторка открыта (watch) — раз в 2 секунды одной командой.
+// Нагрузка на систему для шторки и виджета «Система»: процессор, память, видеокарта (NVIDIA).
+// Опрашивается только пока шторка открыта (watch) — раз в 2 секунды одной командой — или пока
+// на рабочем столе есть виджет (widgets > 0) — раз в 4 секунды.
 Singleton {
     id: root
 
     property bool watch: false
+    property int widgets: 0              // сколько виджетов «Система» сейчас на столе
+    readonly property bool active: watch || widgets > 0
     property real cpu: 0                 // 0…1
     property int cpuTemp: -1             // °C, -1 — датчик не найден
     property real mem: 0                 // 0…1
@@ -47,8 +50,8 @@ Singleton {
         stdout: StdioCollector { onStreamFinished: root.parse(text) }
     }
     function poll() { if (!proc.running) proc.running = true; }
-    onWatchChanged: if (watch) { prev = null; poll(); soon.restart(); }
+    onActiveChanged: if (active) { prev = null; poll(); soon.restart(); }
     // загрузка процессора — разница двух чтений, поэтому второе делаем почти сразу
     Timer { id: soon; interval: 700; onTriggered: root.poll() }
-    Timer { interval: 2000; repeat: true; running: root.watch; onTriggered: root.poll() }
+    Timer { interval: root.watch ? 2000 : 4000; repeat: true; running: root.active; onTriggered: root.poll() }
 }

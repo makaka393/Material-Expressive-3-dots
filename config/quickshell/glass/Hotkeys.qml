@@ -214,7 +214,7 @@ PanelWindow {
                                 required property var modelData
                                 width: col.width
                                 spacing: 4
-                                Label { text: grp.modelData.title; size: 14; weight: 700; color: Theme.primary; elide: Text.ElideNone; bottomPadding: 4 }
+                                Label { text: grp.modelData.title; size: 14; weight: 700; color: Theme.primaryText; elide: Text.ElideNone; bottomPadding: 4 }
                                 Repeater {
                                     model: grp.modelData.rows
                                     Item {

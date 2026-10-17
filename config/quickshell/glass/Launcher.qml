@@ -57,6 +57,8 @@ PanelWindow {
         }
     }
 
+    Connections { target: Ui; function onLauncher(p) { win.show(p); } }
+
     IpcHandler {
         target: "launcher"
         function toggle(): void { if (win.open) win.open = false; else win.show(""); }

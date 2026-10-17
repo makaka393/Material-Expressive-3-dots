@@ -15,13 +15,15 @@ Singleton {
     property bool isDay: true
     property real tMax: 0
     property real tMin: 0
-    property var hourly: []     // [{ hour: "14", temp: 9, code: 3, day: true }]
+    property var hourly: []     // [{ hour: "14", temp: 9, code: 3, day: true }] — через 2 часа, 6 штук (карточка в острове)
+    property var hours: []      // то же на сутки вперёд, каждый час (виджет «Прогноз»)
+    property var days: []       // [{ date: Date, max, min, code }] — неделя (виджеты погоды)
 
     function refresh() {
         const url = "https://api.open-meteo.com/v1/forecast?latitude=" + Theme.lat + "&longitude=" + Theme.lon
             + "&current=temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m,relative_humidity_2m"
-            + "&hourly=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min"
-            + "&timezone=auto&forecast_days=2";
+            + "&hourly=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code"
+            + "&timezone=auto&forecast_days=7";
         const xhr = new XMLHttpRequest();
         xhr.onreadystatechange = () => {
             if (xhr.readyState !== XMLHttpRequest.DONE || xhr.status !== 200) return;
@@ -43,6 +45,13 @@ Singleton {
                     out.push({ hour: d.hourly.time[i].slice(11, 16), temp: d.hourly.temperature_2m[i],
                                code: d.hourly.weather_code[i], day: d.hourly.is_day[i] === 1 });
                 root.hourly = out;
+                const hs = [];
+                for (let i = start; i < d.hourly.time.length && hs.length < 24; i++)
+                    hs.push({ hour: d.hourly.time[i].slice(11, 16), temp: d.hourly.temperature_2m[i],
+                              code: d.hourly.weather_code[i], day: d.hourly.is_day[i] === 1 });
+                root.hours = hs;
+                root.days = d.daily.time.map((t, i) => ({ date: new Date(t + "T12:00"), max: d.daily.temperature_2m_max[i],
+                                                          min: d.daily.temperature_2m_min[i], code: d.daily.weather_code[i] }));
                 root.ready = true;
             } catch (e) {
                 console.warn("weather:", e);

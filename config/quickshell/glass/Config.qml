@@ -16,6 +16,7 @@ Singleton {
     property alias glassOpacity: cfg.glassOpacity     // стекло: 0.15 (почти прозрачно) … 0.7
     property alias m3Opacity: cfg.m3Opacity           // M3: 0.5 (полупрозрачно) … 1 (сплошной)
     property alias glassBlur: cfg.glassBlur           // стекло: сила размытия Hyprland (decoration:blur:size), 3…16
+    property alias scrim: cfg.scrim                   // фон под лаунчером, настройками, шпаргалкой: "dots" — светящиеся точки, "dark" — затемнение
     property alias brightness: cfg.brightness         // яркость, если монитор не понимает DDC (через гамму)
     property alias lang: cfg.lang                     // язык оболочки: "ru" | "en"
     property alias exactColor: cfg.exactColor         // true — тема точно выбранного цвета, false — мягкий Material (как у Google)
@@ -60,6 +61,7 @@ Singleton {
             property real glassOpacity: 0.34
             property real m3Opacity: 1.0
             property int glassBlur: 9
+            property string scrim: "dots"
             property int brightness: 100
             property bool exactColor: false
             property string lang: "ru"

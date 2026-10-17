@@ -9,11 +9,13 @@ Item {
     property real radius: 20
     property bool strong: false            // плотнее (раскрытые карточки и окна)
     property real sheenEnd: 0.45           // где кончается блик (доля высоты)
+    property color tint: "transparent"     // оттенок стекла (виджеты — в цвет своего контейнера темы)
 
     Rectangle {
         anchors.fill: parent
         radius: g.radius
-        color: g.strong ? Theme.glassStrong : Theme.glass
+        color: g.tint.a > 0 && !Theme.m3 ? Qt.alpha(Qt.tint(Theme.frost, Qt.alpha(g.tint, 0.5)), (g.strong ? Theme.glassStrong : Theme.glass).a)
+             : g.strong ? Theme.glassStrong : Theme.glass
         border.width: 1
         border.color: Theme.glassBorder
         Behavior on color { ColorAnimation { duration: 350 } }

@@ -245,6 +245,8 @@ hl.window_rule({ name = "cs2-immediate", match = { class = "cs2" }, immediate = 
 hl.layer_rule({ name = "glass-bar", match = { namespace = "quickshell-bar" }, blur = true, blur_popups = true, ignore_alpha = 0.01, no_anim = true })
 hl.layer_rule({ name = "glass-settings", match = { namespace = "quickshell-settings" }, blur = true, ignore_alpha = 0.4 })
 hl.layer_rule({ name = "glass-launcher", match = { namespace = "quickshell-launcher" }, blur = true, ignore_alpha = 0.4 })
+-- виджеты рабочего стола — стекло, как у бара; в режиме правки размывается весь экран под сеткой
+hl.layer_rule({ name = "glass-desktop", match = { namespace = "quickshell-desktop" }, blur = true, ignore_alpha = 0.01 })
 hl.layer_rule({ name = "glow", match = { namespace = "quickshell-glow" }, no_anim = true })
 hl.layer_rule({ name = "selection", match = { namespace = "selection" }, no_anim = true })
 hl.layer_rule({ name = "rofi", match = { namespace = "rofi" }, blur = true, ignore_alpha = 0.3 })

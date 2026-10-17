@@ -29,7 +29,7 @@ PanelWindow {
         // верх карточки стоит на месте (там, где он у самого высокого раздела по центру экрана):
         // при смене раздела окно растёт вниз, а пункты слева не уезжают из-под курсора
         anchors.horizontalCenter: parent.horizontalCenter
-        y: Math.max(40, Math.round((win.height - 840) / 2))
+        y: Math.max(40, Math.round((win.height - 940) / 2))
         width: 900
         // высоту задаёт открытый раздел (SettingsContent.wantHeight), но не больше экрана
         height: Math.min(win.height - 80, content.item ? content.item.wantHeight : 700)

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
+import Quickshell.Widgets
 
 // Содержимое окна настроек. Пока один раздел — «Оформление»: стиль (стекло / M3) и прозрачность.
 Item {
@@ -9,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : Theme.m3 ? 700 : 800
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -230,7 +231,7 @@ Item {
             Label { text: I18n.t("Как выглядят бар, меню и окна оболочки", "How the bar, menus and shell windows look"); size: 14; color: Theme.fgVariant; elide: Text.ElideNone }
         }
 
-        Label { id: styleTitle; y: 84; text: I18n.t("Стиль", "Style"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+        Label { id: styleTitle; y: 84; text: I18n.t("Стиль", "Style"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
 
         Row {
             id: cards
@@ -281,7 +282,7 @@ Item {
                     Column {
                         anchors { top: prev.bottom; topMargin: 12; left: parent.left; right: parent.right }
                         spacing: 2
-                        Label { text: card.modelData.t; size: 16; weight: 700; color: card.on ? Theme.primary : Theme.fg; elide: Text.ElideNone }
+                        Label { text: card.modelData.t; size: 16; weight: 700; color: card.on ? Theme.primaryText : Theme.fg; elide: Text.ElideNone }
                         Label { width: parent.width; text: card.modelData.s; size: 13; color: Theme.fgVariant }
                     }
                     MouseArea { id: cardMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Config.style = card.modelData.id }
@@ -290,7 +291,7 @@ Item {
         }
 
         Label { id: opTitle; anchors { top: cards.bottom; topMargin: 22 }
-            text: Theme.m3 ? I18n.t("Прозрачность поверхностей", "Surface opacity") : I18n.t("Плотность стекла", "Glass density"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+            text: Theme.m3 ? I18n.t("Прозрачность поверхностей", "Surface opacity") : I18n.t("Плотность стекла", "Glass density"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
         BigSlider {
             id: opSlider
             anchors { top: opTitle.bottom; topMargin: 10 }
@@ -316,7 +317,7 @@ Item {
             Behavior on height { Anim { kind: "fast" } }
             Behavior on opacity { Anim { kind: "effects" } }
             Label { id: blurTitle; y: 22
-                text: I18n.t("Сила размытия", "Blur strength"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+                text: I18n.t("Сила размытия", "Blur strength"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             BigSlider {
                 anchors { top: blurTitle.bottom; topMargin: 10 }
                 width: parent.width
@@ -331,7 +332,7 @@ Item {
 
         // ── насколько точно тема повторяет выбранный цвет
         Label { id: colTitle; anchors { top: blurBox.bottom; topMargin: 26 }
-            text: I18n.t("Цвет темы", "Theme color"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+            text: I18n.t("Цвет темы", "Theme color"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
         Row {
             id: colModes
             anchors { top: colTitle.bottom; topMargin: 10 }
@@ -375,6 +376,69 @@ Item {
                         // перекрасить текущую тему (настройки успевают записаться в файл)
                         Quickshell.execDetached(["sh", "-c", 'sleep 0.4; s=$(cat "$HOME/.cache/matugen/source" 2>/dev/null); exec "$HOME/.config/hypr/scripts/changetheme.sh" "$(readlink -f "$HOME/.cache/matugen/wallpaper")" $s']);
                     } }
+                }
+            }
+        }
+
+        // ── фон под лаунчером, настройками и шпаргалкой (Scrim)
+        Label { id: bgTitle; anchors { top: colModes.bottom; topMargin: 26 }
+            text: I18n.t("Фон под окнами", "Behind windows"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+        Row {
+            id: bgModes
+            anchors { top: bgTitle.bottom; topMargin: 10 }
+            spacing: 12
+            Repeater {
+                model: [
+                    { id: "dots", t: I18n.t("Точки", "Dots"), s: I18n.t("Светящиеся точки плывут и мерцают", "Glowing dots drift and twinkle") },
+                    { id: "dark", t: I18n.t("Тёмный", "Dark"), s: I18n.t("Просто затемнение, без анимации", "Just a dim, no animation") }
+                ]
+                Rectangle {
+                    id: bm
+                    required property var modelData
+                    readonly property bool on: Config.scrim === modelData.id || (modelData.id === "dots" && Config.scrim !== "dark")
+                    width: (page.width - 12) / 2; height: 96
+                    radius: on ? 20 : 30
+                    color: on ? Theme.secondaryContainer : bmMouse.containsMouse ? Qt.alpha(Theme.fg, 0.12) : Theme.glassChip
+                    border.width: on ? 2 : 0; border.color: Theme.primary
+                    Behavior on radius { Anim { kind: "fast" } }
+                    Behavior on color { ColorAnimation { duration: 180 } }
+                    scale: bmMouse.pressed ? 0.97 : 1
+                    Behavior on scale { Anim { kind: "fast" } }
+                    // живое превью: обои и это затемнение поверх
+                    ClippingRectangle {
+                        id: bmPrev
+                        anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                        width: 128; height: 72
+                        radius: bm.on ? 12 : 18
+                        color: Theme.surface
+                        Behavior on radius { Anim { kind: "fast" } }
+                        Image {
+                            anchors.fill: parent
+                            source: root.previewSrc !== "" ? "file://" + root.previewSrc : ""
+                            fillMode: Image.PreserveAspectCrop
+                            sourceSize.width: 256
+                            asynchronous: true
+                        }
+                        Scrim {
+                            id: bmScrim
+                            anchors.fill: parent
+                            shown: root.visible && root.section === "look"
+                            style: bm.modelData.id
+                            dim: 0.34
+                            zoom: 560
+                            origin: Qt.point(width / 2, height / 2)
+                            onClicked: bm.pick()
+                        }
+                    }
+                    function pick() { Config.scrim = modelData.id; bmScrim.replay(); }
+                    Column {
+                        anchors { left: bmPrev.right; leftMargin: 14; right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                        spacing: 4
+                        Label { text: bm.modelData.t; size: 15; weight: 700; color: bm.on ? Theme.secondaryContainerFg : Theme.fg; elide: Text.ElideNone }
+                        Label { width: parent.width; text: bm.modelData.s; size: 12; wrapMode: Text.Wrap; maximumLineCount: 2
+                                color: bm.on ? Qt.alpha(Theme.secondaryContainerFg, 0.8) : Theme.fgVariant }
+                    }
+                    MouseArea { id: bmMouse; anchors.fill: parent; z: -1; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: bm.pick() }
                 }
             }
         }
@@ -430,7 +494,7 @@ Item {
             enabled: Config.aodEnabled
             Behavior on opacity { Anim { kind: "effects" } }
 
-            Label { id: clkTitle; text: I18n.t("Часы", "Clock"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+            Label { id: clkTitle; text: I18n.t("Часы", "Clock"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             // показать AOD прямо сейчас
             Rectangle {
                 anchors { right: parent.right; verticalCenter: clkTitle.verticalCenter }
@@ -513,7 +577,7 @@ Item {
 
             // ── через сколько
             Label { id: toTitle; anchors { top: clkRow.bottom; topMargin: 12 }
-                text: I18n.t("Включать через", "Turn on after"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+                text: I18n.t("Включать через", "Turn on after"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             Row {
                 id: toRow
                 anchors { top: toTitle.bottom; topMargin: 10 }
@@ -542,7 +606,7 @@ Item {
 
             // ── пароль при возвращении
             Label { id: lockTitle; anchors { top: toRow.bottom; topMargin: 12 }
-                text: I18n.t("Пароль при возвращении", "Password when you return"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+                text: I18n.t("Пароль при возвращении", "Password when you return"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             Row {
                 id: lockRow
                 anchors { top: lockTitle.bottom; topMargin: 10 }
@@ -577,7 +641,7 @@ Item {
 
             // ── затемнение
             Label { id: dimTitle; anchors { top: lockRow.bottom; topMargin: 12 }
-                text: I18n.t("Затемнение фона", "Background dimming"); size: 15; weight: 700; color: Theme.primary; elide: Text.ElideNone }
+                text: I18n.t("Затемнение фона", "Background dimming"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             BigSlider {
                 id: dimSlider
                 anchors { top: dimTitle.bottom; topMargin: 10 }

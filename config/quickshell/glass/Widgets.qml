@@ -3,77 +3,105 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Виджеты на рабочем столе: что стоит и где (клетки сетки), режим правки и каталог.
-// Раскладка — в ~/.config/glass/widgets.json. Рисует их Desktop.qml.
-// Список — ListModel, а не массив: добавление или перенос одного виджета не пересоздаёт остальные.
-//   qs ipc -c glass call widgets edit | done | toggle | add <тип> | reset
+// Виджеты на рабочем столе: что стоит, где и какого размера (в клетках сетки), режим правки и каталог.
+// Раскладка — в ~/.config/glass/widgets.json. Рисует их Desktop.qml, сами виджеты — W*.qml.
+// Список — ListModel, а не массив: правка одного виджета не пересоздаёт остальные.
+//   qs ipc -c glass call widgets edit | done | toggle | add <тип> | remove <id> | reset | list
+//   qs ipc -c glass call widgets move <id> <x> <y> | resize <id> <w> <h>
 Singleton {
     id: root
 
-    // каталог: размер в клетках сетки
+    // каталог: размер по умолчанию и пределы в клетках; menu — свои пункты в меню по правому клику
     readonly property var catalog: [
-        { type: "glance",   w: 4, h: 1, icon: "wb_sunny",          ru: "Коротко о главном", en: "At a glance" },
-        { type: "clock",    w: 2, h: 2, icon: "schedule",          ru: "Часы",              en: "Clock" },
-        { type: "weather",  w: 2, h: 2, icon: "partly_cloudy_day", ru: "Погода",            en: "Weather" },
-        { type: "music",    w: 4, h: 2, icon: "music_note",        ru: "Музыка",            en: "Music" },
-        { type: "calendar", w: 3, h: 3, icon: "calendar_month",    ru: "Календарь",         en: "Calendar" }
+        { type: "glance",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 2, icon: "wb_sunny",          ru: "Коротко о главном", en: "At a glance" },
+        { type: "clock",    w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "schedule",          ru: "Часы",              en: "Clock" },
+        { type: "analog",   w: 2, h: 2, minW: 2, minH: 2, maxW: 4, maxH: 4, icon: "nest_clock_farsight_analog", ru: "Циферблат", en: "Analog clock",
+          menu: [{ id: "shape", icon: "interests", ru: "Другая форма", en: "Change shape" }] },
+        { type: "weather",  w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "partly_cloudy_day", ru: "Погода",            en: "Weather" },
+        { type: "forecast", w: 4, h: 2, minW: 3, minH: 2, maxW: 8, maxH: 3, icon: "show_chart",        ru: "Прогноз",           en: "Forecast" },
+        { type: "music",    w: 4, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, icon: "music_note",        ru: "Музыка",            en: "Music" },
+        { type: "calendar", w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4, icon: "calendar_month",    ru: "Календарь",         en: "Calendar" },
+        { type: "search",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 1, icon: "search",            ru: "Поиск",             en: "Search" },
+        { type: "apps",     w: 4, h: 1, minW: 2, minH: 1, maxW: 8, maxH: 2, icon: "apps",              ru: "Частые приложения", en: "Frequent apps" },
+        { type: "toggles",  w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "toggle_on",         ru: "Быстрые кнопки",    en: "Quick toggles" },
+        { type: "system",   w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "memory",            ru: "Система",           en: "System" },
+        { type: "timer",    w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "timer",             ru: "Таймер",            en: "Timer" },
+        { type: "note",     w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, icon: "sticky_note_2",     ru: "Заметка",           en: "Note",
+          menu: [{ id: "clear", icon: "ink_eraser", ru: "Очистить заметку", en: "Clear note" }] },
+        { type: "sun",      w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, icon: "wb_twilight",       ru: "Солнце",            en: "Sun" },
+        { type: "photo",    w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, icon: "photo",             ru: "Фото",              en: "Photo",
+          menu: [{ id: "next", icon: "skip_next", ru: "Следующее фото", en: "Next photo" },
+                 { id: "shape", icon: "interests", ru: "Другая форма", en: "Change shape" }] },
+        { type: "progress", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 3, icon: "data_usage",        ru: "День и год",        en: "Day & year",
+          menu: [{ id: "mode", icon: "swap_horiz", ru: "День / месяц / год", en: "Day / month / year" }] }
     ]
     function spec(type) { return catalog.find(c => c.type === type) || catalog[0]; }
+    function known(type) { return catalog.some(c => c.type === type); }
 
-    property ListModel model: ListModel {}     // роли: wid, type, gx, gy
+    property ListModel model: ListModel {}     // роли: wid, type, gx, gy, gw, gh, extra (JSON-строка — свои настройки виджета)
     property bool editing: false
+    property bool typing: false          // пишем в заметке — рабочему столу нужна клавиатура
+    property bool picking: false         // открыт каталог «Добавить виджет»
     property string leaving: ""          // wid виджета, который сейчас уезжает (анимация удаления)
     property string fresh: ""            // wid только что добавленного (анимация появления)
     property int cols: 20                // размер сетки — сообщает Desktop по своему экрану
     property int rows: 10
     property bool loaded: false
+    property string file: Config.dir + "/widgets.json"
+    onEditingChanged: { if (editing) typing = false; else picking = false; }
+
+    // команда виджету из меню по правому клику (см. menu в каталоге): виджет слушает своё wid
+    signal command(string wid, string name)
 
     readonly property var defaults: [
-        { wid: "w1", type: "glance", gx: 0, gy: 0 },
-        { wid: "w2", type: "clock", gx: 0, gy: 1 },
-        { wid: "w3", type: "weather", gx: 2, gy: 1 }
+        { wid: "w1", type: "glance",  gx: 0, gy: 0, gw: 4, gh: 1 },
+        { wid: "w2", type: "clock",   gx: 0, gy: 1, gw: 2, gh: 2 },
+        { wid: "w3", type: "weather", gx: 2, gy: 1, gw: 2, gh: 2 },
+        { wid: "w4", type: "search",  gx: 0, gy: 3, gw: 4, gh: 1 }
     ]
 
-    function at(i) { return model.get(i); }
     function indexOf(wid) {
         for (let i = 0; i < model.count; i++) if (model.get(i).wid === wid) return i;
         return -1;
     }
+    function clampW(type, w) { const s = spec(type); return Math.max(s.minW, Math.min(s.maxW, Math.round(w))); }
+    function clampH(type, h) { const s = spec(type); return Math.max(s.minH, Math.min(s.maxH, Math.round(h))); }
 
     // ── занятость клеток
-    function fits(type, x, y, skip) {
-        const s = spec(type);
-        if (x < 0 || y < 0 || x + s.w > cols || y + s.h > rows) return false;
+    function fits(x, y, w, h, skip) {
+        if (x < 0 || y < 0 || x + w > cols || y + h > rows) return false;
         for (let i = 0; i < model.count; i++) {
             const it = model.get(i);
             if (it.wid === skip || it.wid === leaving) continue;
-            const o = spec(it.type);
-            if (x < it.gx + o.w && it.gx < x + s.w && y < it.gy + o.h && it.gy < y + s.h) return false;
+            if (x < it.gx + it.gw && it.gx < x + w && y < it.gy + it.gh && it.gy < y + h) return false;
         }
         return true;
     }
-    function freeSpot(type) {
+    function freeSpot(w, h) {
         for (let y = 0; y < rows; y++)
             for (let x = 0; x < cols; x++)
-                if (fits(type, x, y, "")) return { x: x, y: y };
+                if (fits(x, y, w, h, "")) return { x: x, y: y };
         return null;
     }
 
     // ── правки
     function add(type) {
-        const p = freeSpot(type);
+        if (!known(type)) return;
+        const s = spec(type);
+        let w = s.w, h = s.h, p = freeSpot(w, h);
+        if (!p) { w = s.minW; h = s.minH; p = freeSpot(w, h); }      // не влез — пробуем самый маленький
         if (!p) {
-            Activity.show({ icon: "grid_off", title: I18n.t("Нет места", "No room"), sub: I18n.t("Убери или подвинь виджеты", "Remove or move widgets") }, 2200);
+            Activity.show({ icon: "grid_off", title: I18n.t("Нет места", "No room"), sub: I18n.t("Убери или уменьши виджеты", "Remove or shrink widgets") }, 2200);
             return;
         }
         let n = 1;
         while (indexOf("w" + n) >= 0) n++;
         fresh = "w" + n;
-        model.append({ wid: fresh, type: type, gx: p.x, gy: p.y });
+        model.append({ wid: fresh, type: type, gx: p.x, gy: p.y, gw: w, gh: h, extra: "{}" });
         save();
     }
     function remove(wid) {
-        if (leaving !== "") return;
+        if (leaving !== "" || indexOf(wid) < 0) return;
         leaving = wid;
         dropTimer.restart();
     }
@@ -89,43 +117,79 @@ Singleton {
     }
     function move(wid, x, y) {
         const i = indexOf(wid);
-        if (i < 0 || !fits(model.get(i).type, x, y, wid)) return false;
+        if (i < 0) return false;
+        const it = model.get(i);
+        if (!fits(x, y, it.gw, it.gh, wid)) return false;
         model.setProperty(i, "gx", x);
         model.setProperty(i, "gy", y);
         save();
         return true;
     }
+    // новый прямоугольник целиком: тянем за левый или верхний край — меняется и положение
+    function resize(wid, x, y, w, h) {
+        const i = indexOf(wid);
+        if (i < 0) return false;
+        const it = model.get(i);
+        if (w !== clampW(it.type, w) || h !== clampH(it.type, h) || !fits(x, y, w, h, wid)) return false;
+        model.setProperty(i, "gx", x);
+        model.setProperty(i, "gy", y);
+        model.setProperty(i, "gw", w);
+        model.setProperty(i, "gh", h);
+        save();
+        return true;
+    }
+    function extraOf(wid) {
+        const i = indexOf(wid);
+        try { return i >= 0 ? JSON.parse(model.get(i).extra || "{}") : {}; } catch (e) { return {}; }
+    }
+    function setExtra(wid, key, value) {
+        const i = indexOf(wid);
+        if (i < 0) return;
+        const d = extraOf(wid);
+        if (JSON.stringify(d[key]) === JSON.stringify(value)) return;
+        d[key] = value;
+        model.setProperty(i, "extra", JSON.stringify(d));
+        save();
+    }
     function fill(list) {
         model.clear();
-        for (const it of list) model.append({ wid: it.wid, type: it.type, gx: it.gx, gy: it.gy });
+        for (const it of list) {
+            const s = spec(it.type);
+            model.append({ wid: it.wid, type: it.type, gx: it.gx, gy: it.gy,
+                           gw: clampW(it.type, it.gw || s.w), gh: clampH(it.type, it.gh || s.h),
+                           extra: it.extra ? JSON.stringify(it.extra) : "{}" });
+        }
     }
     function reset() { fill(defaults); save(); }
 
-    // ── файл
+    // ── файл (version 1 — без размеров: берутся из каталога)
     FileView {
-        id: file
-        path: Config.dir + "/widgets.json"
+        id: fileView
+        path: root.file
         printErrors: false
         onLoaded: {
             try {
                 const d = JSON.parse(text());
-                root.fill((d.items || []).filter(i => i && i.id && root.catalog.some(c => c.type === i.type))
-                          .map(i => ({ wid: i.id, type: i.type, gx: i.x | 0, gy: i.y | 0 })));
+                root.fill((d.items || []).filter(i => i && i.id && root.known(i.type))
+                          .map(i => ({ wid: i.id, type: i.type, gx: i.x | 0, gy: i.y | 0, gw: i.w | 0, gh: i.h | 0, extra: i.extra })));
             } catch (e) { root.fill(root.defaults); }
             root.loaded = true;
         }
         onLoadFailed: { root.fill(root.defaults); root.loaded = true; root.save(); }
     }
-    // запись — с короткой задержкой: перенос, добавление и удаление подряд дают одну запись
+    // запись — с короткой задержкой: перенос, размер и удаление подряд дают одну запись
     function save() { if (loaded) saveTimer.restart(); }
     Timer { id: saveTimer; interval: 400; onTriggered: root.write() }
     function write() {
         const items = [];
         for (let i = 0; i < model.count; i++) {
             const it = model.get(i);
-            items.push({ id: it.wid, type: it.type, x: it.gx, y: it.gy });
+            const o = { id: it.wid, type: it.type, x: it.gx, y: it.gy, w: it.gw, h: it.gh };
+            const ex = extraOf(it.wid);
+            if (Object.keys(ex).length) o.extra = ex;
+            items.push(o);
         }
-        file.setText(JSON.stringify({ version: 1, items: items }, null, 2) + "\n");
+        fileView.setText(JSON.stringify({ version: 2, items: items }, null, 2) + "\n");
     }
 
     IpcHandler {
@@ -133,7 +197,23 @@ Singleton {
         function edit(): void { root.editing = true; }
         function done(): void { root.editing = false; }
         function toggle(): void { root.editing = !root.editing; }
+        function catalog(): void { root.editing = true; root.picking = true; }
         function add(type: string): void { root.add(type); }
+        function remove(wid: string): void { root.remove(wid); }
+        function move(wid: string, x: int, y: int): bool { return root.move(wid, x, y); }
+        function resize(wid: string, w: int, h: int): bool {
+            const i = root.indexOf(wid);
+            return i >= 0 && root.resize(wid, root.model.get(i).gx, root.model.get(i).gy, w, h);
+        }
+        function command(wid: string, name: string): void { root.command(wid, name); }
         function reset(): void { root.reset(); }
+        function list(): string {
+            const out = [];
+            for (let i = 0; i < root.model.count; i++) {
+                const it = root.model.get(i);
+                out.push(it.wid + " " + it.type + " " + it.gx + "," + it.gy + " " + it.gw + "x" + it.gh);
+            }
+            return out.join("\n");
+        }
     }
 }

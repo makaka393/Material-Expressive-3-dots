@@ -81,6 +81,26 @@ Singleton {
     readonly property color glassShade: m3 ? "transparent" : Qt.rgba(0, 0, 0, 0.13)      // тень у нижнего края
     readonly property color glassChip: m3 ? Qt.alpha(surfaceHighest, Math.max(0.35, m3Opacity)) : Qt.alpha(fg, 0.08)
 
+    // цвет, который читается текстом на bg: у «точного цвета» primary бывает тёмным, и заголовки
+    // им на тёмной поверхности почти не видны — тогда берём тот же оттенок, но светлее (или темнее)
+    function lum(c) {
+        const f = x => x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    }
+    function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+    function legible(c, bg, need) {
+        const k = need || 3.4;
+        if (contrast(c, bg) >= k) return c;
+        const up = lum(bg) < 0.18;
+        for (let l = c.hslLightness; up ? l <= 0.97 : l >= 0.03; l += up ? 0.04 : -0.04) {
+            const t = Qt.hsla(c.hslHue, Math.min(1, c.hslSaturation * 1.1), l, 1);
+            if (contrast(t, bg) >= k) return t;
+        }
+        return up ? "white" : "black";
+    }
+    readonly property color primaryText: legible(primary, surface)
+    readonly property color tertiaryText: legible(tertiary, surface)
+
     function css(col) {
         return "rgba(" + Math.round(col.r * 255) + "," + Math.round(col.g * 255) + ","
                + Math.round(col.b * 255) + "," + col.a + ")";
