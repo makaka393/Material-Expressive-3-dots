@@ -35,6 +35,7 @@ from . import chime, config
 from .claude import UNAVAILABLE, ClaudeBrain
 from .local import LocalBrain, LocalServer
 from .router import route, wake
+from .tools import base, power, timers
 from .stt import Mic, Vad, Whisper, record_utterance, FRAME, RATE
 from .tts import Sentences, Voice
 
@@ -131,6 +132,15 @@ class Daemon:
     async def ask(self, text, voice=False, speak=None, to=None, depth=0):
         cfg = config.load()
         speak = (cfg["speak_voice"] if voice else cfg["speak_typed"]) if speak is None else speak
+        if power.pending():                                      # «Выключить компьютер?» — «да»
+            answer = await power.confirm(text)
+            if answer is not None:
+                await self.emit("route", brain="local", text=text)
+                await self.emit("done", text=answer.show, backend="local", actions=[])
+                if speak:
+                    await self.voice.say(answer.say, cfg)
+                    await self.voice.idle.wait()
+                return
         last = self.last_local[0] if self.last_local and time.monotonic() - self.last_local[1] < 120 else None
         r = route(text, cfg, to=to, last=last)
         if r.brain == "claude" and not r.text:
@@ -200,9 +210,16 @@ class Daemon:
                         actions=[{k: a[k] for k in ("name", "args", "ok", "show")} for a in actions])
         if speak:
             await self.voice.idle.wait()
-            if voice and cfg.get("follow_up") and depth < FOLLOW_MAX:
+            # вопрос о питании ждёт ответа — слушаем его, даже если «разговор» выключен
+            if voice and (cfg.get("follow_up") and depth < FOLLOW_MAX or power.pending()):
                 # диалог: слушаем ответ без слова-активатора; начали с Claude — с ним и продолжаем
                 await self.listen(cfg, to="claude" if backend == "claude" else None, depth=depth + 1)
+
+    async def announce(self, text, kind):
+        """Напоминание или будильник: тост в острове, звук, голос."""
+        await base.qs("island", "toast", "alarm", "Будильник" if kind == "alarm" else "Напоминание", text)
+        chime.play("alarm" if kind == "alarm" else "wake")
+        await self.voice.say(("Напоминаю: " + text) if kind == "reminder" else text, config.load())
 
     # ── слово-активатор: короткие фразы распознаются Whisper; начинается с имени — это к нам
     async def wake_loop(self):
@@ -324,7 +341,9 @@ class Daemon:
             pass
         server = await asyncio.start_unix_server(self.client, path=str(path))
         os.chmod(path, 0o600)
+        timers.SCHED = timers.Scheduler(config.DATA / "reminders.json", self.announce)
         tasks = [asyncio.create_task(self.reaper()), asyncio.create_task(self.wake_loop()),
+                 asyncio.create_task(timers.SCHED.run()),
                  asyncio.create_task(self.voice.ready(config.load()))]       # голос — заранее, не при первом ответе
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):

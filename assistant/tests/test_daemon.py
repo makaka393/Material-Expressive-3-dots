@@ -252,6 +252,62 @@ class DialogTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.d.local_brain.asked, ["какая погода"])
 
 
+class PowerFlowTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from glass_assistant.tools import power
+        self.power = power
+        power.PENDING = None
+        cfg = {**config.DEFAULTS, "speak_voice": True, "follow_up": False}
+        self.calls = []
+
+        async def sh(*argv, timeout=5):
+            self.calls.append(argv)
+            return ""
+        for p in (patch("glass_assistant.config.load", return_value=cfg), patch("glass_assistant.daemon.chime.play"),
+                  patch("glass_assistant.tools.base.sh", sh)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.d = Daemon()
+        self.d.local_brain = FakeBrain("ответ")
+        self.d.claude_brain = FakeBrain("от Claude")
+        self.d.local = AsyncMock()
+        self.d.voice = FakeVoice()
+        self.events = []
+
+        async def emit(ev, **kw):
+            self.events.append((ev, kw))
+        self.d.emit = emit
+
+    async def test_yes_goes_to_power_not_model(self):
+        import time as t
+        self.power.PENDING = ("shutdown", t.monotonic() + 20)
+        await self.d.ask("да")
+        self.assertEqual(self.d.local_brain.asked, [])
+        self.assertIn(("systemctl", "poweroff"), self.calls)
+        self.assertEqual([kw["text"] for e, kw in self.events if e == "done"], ["Выключаю"])
+
+    async def test_question_by_voice_listens_for_answer(self):
+        # «выключи компьютер» голосом → «Выключить? Скажи да» → слушаем ответ, даже если «разговор» выключен
+        import time as t
+        power = self.power
+
+        class AskingBrain(FakeBrain):
+            async def answer(self, text, voice, on_delta, on_action):
+                power.PENDING = ("shutdown", t.monotonic() + 20)
+                return await super().answer(text, voice, on_delta, on_action)
+        self.d.local_brain = AskingBrain("Выключить компьютер? Скажи «да».")
+        self.d.listen = AsyncMock()
+        await self.d.ask("выключи компьютер", voice=True)
+        self.d.listen.assert_awaited_once()
+
+    async def test_announce_reminder(self):
+        qs = AsyncMock(return_value="")
+        with patch("glass_assistant.tools.base.qs", qs):
+            await self.d.announce("позвонить маме", "reminder")
+        qs.assert_awaited_once_with("island", "toast", "alarm", "Напоминание", "позвонить маме")
+        self.assertEqual(self.d.voice.said, ["Напоминаю: позвонить маме"])
+
+
 class ServeTest(unittest.IsolatedAsyncioTestCase):
     async def test_voice_preloaded_on_start(self):
         # модель голоса грузится при запуске службы, а не при первом ответе (1,5 с + разогрев)
