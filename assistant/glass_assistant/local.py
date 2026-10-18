@@ -43,6 +43,9 @@ NOTHING = {"type": "function", "function": {
     "parameters": {"type": "object", "properties": {}, "required": []}}}
 
 
+MODES = (["-ngl", "99", "-fit", "off"], ["--fit", "on"], ["-ngl", "8", "-fit", "off"], ["-ngl", "0", "-fit", "off"])
+
+
 @dataclass
 class Reply:
     text: str
@@ -71,18 +74,19 @@ class LocalServer:
             exe = shutil.which("llama-server")
             if not exe or not os.path.exists(cfg["local_model"]):
                 raise RuntimeError("локальная модель не установлена")
-            # сначала целиком в видеопамять (втрое быстрее); не влезла (игра, браузер) — что влезет
-            for fit in (False, True):
-                if await self._start(exe, cfg, fit):
+            # сначала целиком в видеопамять (втрое быстрее); не влезла (игра, Waydroid) — что влезет:
+            # --fit on иногда падает (GGML_ASSERT), тогда 8 слоёв на видеокарте, а нет — только процессор
+            for mode in MODES:
+                if await self._start(exe, cfg, mode):
                     return
             raise RuntimeError("Локальная модель не запустилась (см. logs/llama-server.log)")
 
-    async def _start(self, exe, cfg, fit) -> bool:
+    async def _start(self, exe, cfg, mode) -> bool:
         log = open(config.DATA / "logs/llama-server.log", "ab")
         self.proc = await asyncio.create_subprocess_exec(
             exe, "-m", cfg["local_model"], "--host", "127.0.0.1", "--port", str(self.port),
             "-c", "8192", "-np", "1", "-fa", "auto", "--jinja", "--reasoning", "off", "--no-webui",
-            *(["--fit", "on"] if fit else ["-ngl", "99", "-fit", "off"]),
+            *mode,
             stdout=log, stderr=log)
         async with httpx2.AsyncClient() as http:
             for _ in range(240):                          # до минуты: модель грузится с диска

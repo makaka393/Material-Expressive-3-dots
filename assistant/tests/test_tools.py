@@ -27,7 +27,7 @@ TEST_TOOLS = {
     "echo": Tool("echo", "Повторить", {"level": {"type": "integer"}, "on": {"type": "boolean"}}, ["level"], echo),
     "boom": Tool("boom", "Сломаться", {}, [], boom),
     "sleepy": Tool("sleepy", "Уснуть", {}, [], sleepy),
-    "hint": Tool("hint", "Подсказка", {}, [], None, claude=False),
+    "hint": Tool("hint", "Подсказка", {}, [], None),
 }
 
 
@@ -100,7 +100,7 @@ class SchemaTest(unittest.TestCase):
 
     def test_anthropic(self):
         a = tools.anthropic_tools()
-        self.assertEqual([t["name"] for t in a], ["echo", "boom", "sleepy"])   # без claude=False
+        self.assertEqual([t["name"] for t in a], ["echo", "boom", "sleepy", "hint"])
         self.assertEqual(a[0], {"name": "echo", "description": "Повторить", "input_schema": {
             "type": "object", "properties": TEST_TOOLS["echo"].params, "required": ["level"]}})
 

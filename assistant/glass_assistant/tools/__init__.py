@@ -29,7 +29,7 @@ def openai_tools() -> list[dict]:
 
 def anthropic_tools() -> list[dict]:
     return [{"name": t.name, "description": t.description, "input_schema": _schema(t)}
-            for t in TOOLS.values() if t.claude]
+            for t in TOOLS.values()]
 
 
 def _coerce(value, schema):

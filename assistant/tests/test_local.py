@@ -286,6 +286,27 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("on", second[second.index("--fit") + 1:second.index("--fit") + 2])
         self.assertNotIn("-ngl", second)
 
+    async def test_fallback_chain_when_fit_crashes(self):
+        # мало видеопамяти (игра, Waydroid): -ngl 99 — нехватка, --fit on иногда падает (GGML_ASSERT) —
+        # тогда 8 слоёв на видеокарте, а нет — только процессор
+        procs = iter([FakeProc(returncode=1), FakeProc(returncode=134), FakeProc()])
+        self.exec.side_effect = lambda *a, **k: next(procs)
+        await self.server.ensure(self.cfg)
+        third = list(self.exec.await_args_list[2].args)
+        self.assertEqual(third[third.index("-ngl") + 1], "8")
+
+    async def test_cpu_last_resort(self):
+        procs = iter([FakeProc(returncode=1)] * 3 + [FakeProc()])
+        self.exec.side_effect = lambda *a, **k: next(procs)
+        await self.server.ensure(self.cfg)
+        last = list(self.exec.await_args_list[3].args)
+        self.assertEqual(last[last.index("-ngl") + 1], "0")
+
+    async def test_all_fail(self):
+        self.exec.side_effect = lambda *a, **k: FakeProc(returncode=1)
+        with self.assertRaises(RuntimeError):
+            await self.server.ensure(self.cfg)
+
     async def test_unload(self):
         await self.server.ensure(self.cfg)
         proc = self.server.proc

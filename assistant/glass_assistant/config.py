@@ -14,7 +14,7 @@ RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
 SOCKET = RUNTIME / "glass-assistant.sock"
 
 DEFAULTS = {
-    "backend": "auto",           # auto — локальная модель, «морковка» — Claude; claude — всегда Claude; local — никогда
+    "backend": "auto",           # auto — локальная модель, «морковь» — Claude; claude — всегда Claude; local — никогда
     "claude_words": ["морковь"],   # слово в начале фразы отправляет её в Claude (узнаётся по «морков…»)
     "model": "claude-opus-5-5",
     "effort": "low",             # low | medium | high — глубина размышлений Claude (ниже — быстрее)

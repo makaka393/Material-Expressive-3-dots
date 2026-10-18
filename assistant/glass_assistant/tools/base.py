@@ -20,7 +20,6 @@ class Tool:
     params: dict                # JSON Schema свойств
     required: list
     handler: Callable[[dict], Awaitable[Result]] | None
-    claude: bool = True         # давать ли инструмент Claude
 
 
 async def sh(*argv: str, timeout: float = 5) -> str:
