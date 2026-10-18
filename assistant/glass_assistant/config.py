@@ -14,7 +14,8 @@ RUNTIME = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp"))
 SOCKET = RUNTIME / "glass-assistant.sock"
 
 DEFAULTS = {
-    "backend": "auto",           # auto — Claude, без сети или ключа — локальная модель; claude | local
+    "backend": "auto",           # auto — локальная модель, «морковка» — Claude; claude — всегда Claude; local — никогда
+    "claude_words": ["морковка"],  # слово в начале фразы отправляет её в Claude
     "model": "claude-opus-5-5",
     "effort": "low",             # low | medium | high — глубина размышлений Claude (ниже — быстрее)
     "speak_voice": True,         # озвучивать ответы на голосовые вопросы
@@ -26,8 +27,9 @@ DEFAULTS = {
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново
     "history_idle_min": 10,      # и после такой паузы
-    "local_model": str(DATA / "models/llm/Qwen3.5-9B-Q4_K_M.gguf"),
-    "local_idle_min": 5,         # локальная модель выгружается из видеопамяти после простоя
+    "local_model": str(DATA / "models/llm/gemma-4-E4B-it-Q4_K_M.gguf"),
+    "local_idle_min": 30,        # локальная модель выгружается из видеопамяти после простоя
+    "local_history_turns": 6,    # столько реплик помнит разговор с локальной моделью
     "whisper_model": str(DATA / "models/whisper/ggml-large-v3-turbo-q5_0.bin"),
     "whisper_idle_min": 15,
     "tts_model": str(DATA / "models/tts/v5_ru.pt"),

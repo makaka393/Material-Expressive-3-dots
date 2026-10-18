@@ -1,0 +1,251 @@
+"""Локальный мозг: Gemma 4 E4B в llama-server — быстрые ответы и действия на компьютере.
+
+Один проход модели: вызвала инструменты — выполняем и отвечаем их результатом, без второго
+прохода (ради скорости). Системный промпт и список инструментов не меняются от вопроса к вопросу —
+llama-server держит их в кэше, и каждый вопрос стоит только свои ~40 токенов.
+"""
+import asyncio
+import json
+import os
+import re
+import shutil
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+
+import httpx2
+
+from . import config, tools
+
+SYSTEM = """Ты — голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). Отвечай по-русски.
+- Просят что-то сделать — вызови инструмент. Не переспрашивай, если можно разумно догадаться.
+- Несколько действий в одной фразе — несколько вызовов.
+- Вопрос или разговор — ответь сам, одно-два коротких предложения, без markdown.
+- power — только если явно просят выключить, перезагрузить или усыпить компьютер.
+В начале сообщения в квадратных скобках — дата и время, это справка, не слова пользователя."""
+
+VOICE_NOTE = ("Этот ответ будет озвучен голосом. Одно-три коротких предложения, без markdown, списков, "
+              "эмодзи и ссылок. Числа, даты и единицы пиши словами, как произносишь.")
+
+SUGGEST_TEXT = "Это лучше спросить у Claude — скажи «морковка»."
+DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+HISTORY_IDLE = 120               # с: разговор с локальной моделью короткий — «а теперь громче»
+STAMP = re.compile(r"^\s*\[[^\]]*\]\s*")
+# «Блокирую экран.» без вызова инструмента — модель только пообещала; переспрашиваем с обязательным вызовом
+CLAIM = re.compile(r"^(хорошо,?\s*)?(блокирую|включаю|выключаю|выполняю|перезагружаю|запускаю|открываю|ставлю|"
+                   r"делаю|переключаю|убавляю|прибавляю)", re.I)
+
+
+@dataclass
+class Reply:
+    text: str
+    actions: list = field(default_factory=list)     # [{"name", "args", "ok", "show", "say"}]
+    suggest: bool = False                            # локальная предложила спросить у Claude
+
+
+class LocalServer:
+    """llama-server: грузится заранее (Super+A, слово-активатор, режим «?» лаунчера) и выгружается после
+    простоя или при запуске игры — видеопамять нужна и им."""
+
+    def __init__(self, port: int = 8091):
+        self.port = port
+        self.proc = None
+        self.used = 0.0
+        self.lock = asyncio.Lock()
+
+    @property
+    def url(self):
+        return f"http://127.0.0.1:{self.port}"
+
+    async def ensure(self, cfg):
+        async with self.lock:
+            self.used = time.monotonic()
+            if self.proc and self.proc.returncode is None:
+                return
+            exe = shutil.which("llama-server")
+            if not exe or not os.path.exists(cfg["local_model"]):
+                raise RuntimeError("локальная модель не установлена")
+            # сначала целиком в видеопамять (втрое быстрее); не влезла (игра, браузер) — что влезет
+            for fit in (False, True):
+                if await self._start(exe, cfg, fit):
+                    return
+            raise RuntimeError("Локальная модель не запустилась (см. logs/llama-server.log)")
+
+    async def _start(self, exe, cfg, fit) -> bool:
+        log = open(config.DATA / "logs/llama-server.log", "ab")
+        self.proc = await asyncio.create_subprocess_exec(
+            exe, "-m", cfg["local_model"], "--host", "127.0.0.1", "--port", str(self.port),
+            "-c", "8192", "-np", "1", "-fa", "auto", "--jinja", "--reasoning", "off", "--no-webui",
+            *(["--fit", "on"] if fit else ["-ngl", "99", "-fit", "off"]),
+            stdout=log, stderr=log)
+        async with httpx2.AsyncClient() as http:
+            for _ in range(240):                          # до минуты: модель грузится с диска
+                if self.proc.returncode is not None:
+                    return False
+                try:
+                    if (await http.get(self.url + "/health", timeout=1)).status_code == 200:
+                        return True
+                except httpx2.HTTPError:
+                    pass
+                await asyncio.sleep(0.25)
+        self.proc.terminate()
+        await self.proc.wait()
+        return False
+
+    async def warm(self, cfg):
+        try:
+            await self.ensure(cfg)
+        except Exception as e:
+            print("локальная модель не прогрелась:", e, flush=True)
+
+    async def unload(self):
+        async with self.lock:
+            if self.proc and self.proc.returncode is None:
+                self.proc.terminate()
+                await self.proc.wait()
+            self.proc = None
+
+    async def reap(self, cfg):
+        if self.proc and self.proc.returncode is None and time.monotonic() - self.used > cfg["local_idle_min"] * 60:
+            await self.unload()
+
+    async def stop(self):
+        await self.unload()
+
+
+class Gate:
+    """Фильтр текста ответа: срезает метку «[дата, время]», которую модель любит повторять, и
+    придерживает начало, пока не ясно, не пустое ли это обещание («Блокирую экран.»)."""
+
+    def __init__(self):
+        self.buf = ""
+        self.open = False
+        self.claimed = False
+
+    def feed(self, chunk: str) -> str:
+        if self.open:
+            return chunk
+        if self.claimed:
+            return ""
+        self.buf += chunk
+        head = self.buf.lstrip()
+        if head.startswith("[") and "]" not in head and len(head) < 60:
+            return ""                                   # метка ещё не кончилась
+        head = STAMP.sub("", self.buf)
+        if len(head) < 20 and not CLAIM.match(head):
+            return ""                                   # мало текста, чтобы понять
+        return self._decide(head)
+
+    def flush(self) -> str:
+        if self.open or self.claimed:
+            return ""
+        return self._decide(STAMP.sub("", self.buf))
+
+    def _decide(self, head: str) -> str:
+        if CLAIM.match(head):
+            self.claimed = True
+            return ""
+        self.open = True
+        return head
+
+
+class LocalBrain:
+    def __init__(self, server: LocalServer):
+        self.server = server
+        self.history = []        # реплики: [user, assistant, tool…] — списки сообщений OpenAI
+        self.last = 0.0
+
+    def reset(self):
+        self.history = []
+
+    @staticmethod
+    def stamp(text: str, voice: bool) -> str:
+        now = datetime.now()
+        # указание про озвучку — здесь, а не в системном промпте: тот должен оставаться в кэше
+        note = f"; {VOICE_NOTE}" if voice else ""
+        return f"[{now:%Y-%m-%d %H:%M}, {DAYS[now.weekday()]}{note}]\n{text}"
+
+    async def answer(self, text, voice, on_delta, on_action) -> Reply:
+        cfg = config.load()
+        await self.server.ensure(cfg)
+        if self.history and time.monotonic() - self.last > HISTORY_IDLE:
+            self.history = []
+        user = {"role": "user", "content": self.stamp(text, voice)}
+        msgs = [{"role": "system", "content": SYSTEM}, *[m for turn in self.history for m in turn], user]
+
+        gate = Gate()
+        shown = []
+
+        async def on_text(chunk):
+            out = gate.feed(chunk)
+            if out:
+                shown.append(out)
+                await on_delta(out)
+
+        content, calls = await self._complete(msgs, on_text)
+        rest = gate.flush()
+        if rest:
+            shown.append(rest)
+            await on_delta(rest)
+        if not calls and gate.claimed:
+            _, calls = await self._complete(msgs, None, tool_choice="required")
+
+        actions, results, suggest = [], [], False
+        for i, c in enumerate(calls):
+            c["id"] = c["id"] or f"call_{i}"
+            if c["name"] == tools.SUGGEST:
+                suggest = True
+                results.append("спросить у Claude")
+                continue
+            res = await tools.run(c["name"], c["arguments"])
+            try:
+                args = json.loads(c["arguments"] or "{}")
+            except ValueError:
+                args = {}
+            action = {"name": c["name"], "args": args, "ok": res.ok, "show": res.show, "say": res.say}
+            actions.append(action)
+            results.append(res.show or ("ок" if res.ok else "ошибка"))
+            await on_action(action)
+
+        reply_text = "".join(shown)
+        if suggest:
+            reply_text = SUGGEST_TEXT
+            await on_delta(SUGGEST_TEXT)
+
+        turn = [user, {"role": "assistant", "content": "".join(shown) or None,
+                       **({"tool_calls": [{"id": c["id"], "type": "function",
+                                           "function": {"name": c["name"], "arguments": c["arguments"]}}
+                                          for c in calls]} if calls else {})}]
+        turn += [{"role": "tool", "tool_call_id": c["id"], "content": r} for c, r in zip(calls, results)]
+        self.history = (self.history + [turn])[-cfg["local_history_turns"]:]
+        self.last = time.monotonic()
+        return Reply(reply_text, actions, suggest)
+
+    async def _complete(self, msgs, on_text, tool_choice=None):
+        """Потоковый запрос; текст — в on_text по кускам, вызовы собираются из кусков. → (текст, вызовы)."""
+        body = {"messages": msgs, "tools": tools.openai_tools(), "stream": True, "temperature": 0.2,
+                "max_tokens": 600, "cache_prompt": True}
+        if tool_choice:
+            body["tool_choice"] = tool_choice
+        parts, calls = [], {}
+        async with httpx2.AsyncClient(timeout=httpx2.Timeout(120.0, connect=3.0)) as http:
+            async with http.stream("POST", self.server.url + "/v1/chat/completions", json=body) as r:
+                r.raise_for_status()
+                async for line in r.aiter_lines():
+                    if not line.startswith("data: ") or line == "data: [DONE]":
+                        continue
+                    try:
+                        delta = json.loads(line[6:])["choices"][0]["delta"]
+                    except (ValueError, KeyError, IndexError):
+                        continue
+                    for tc in delta.get("tool_calls") or []:
+                        c = calls.setdefault(tc.get("index", 0), {"id": "", "name": "", "arguments": ""})
+                        c["id"] = tc.get("id") or c["id"]
+                        f = tc.get("function") or {}
+                        c["name"] += f.get("name") or ""
+                        c["arguments"] += f.get("arguments") or ""
+                    if delta.get("content"):
+                        parts.append(delta["content"])
+                        if on_text:
+                            await on_text(delta["content"])
+        return "".join(parts), [calls[i] for i in sorted(calls)]
