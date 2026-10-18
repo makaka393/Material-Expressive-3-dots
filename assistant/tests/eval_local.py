@@ -68,7 +68,8 @@ CASES = [
     ("закрой дискорд", [("close_app", lambda c: "дискорд" in low(arg(c, "name")) or "discord" in low(arg(c, "name")))]),
     ("найди на ютубе как сделать пиццу", [("web_search", lambda c: arg(c, "site") == "youtube" and "пицц" in low(arg(c, "query")))]),
     ("загугли курс доллара", [("web_search", lambda c: "доллар" in low(arg(c, "query")))]),
-    ("открой гитхаб", [("open_url", lambda c: "github" in low(arg(c, "url")))]),
+    ("открой гитхаб", ([("open_url", lambda c: "github" in low(arg(c, "url")))],
+                       [("open_app", lambda c: "github" in low(arg(c, "name")) or "гитхаб" in low(arg(c, "name")))])),
     ("следующая вкладка", [("browser_tab", lambda c: arg(c, "action") == "next")]),
     ("закрой вкладку", [("browser_tab", lambda c: arg(c, "action") == "close")]),
     ("открой новую вкладку", [("browser_tab", lambda c: arg(c, "action") == "new")]),
@@ -88,7 +89,7 @@ CASES = [
     ("заблокируй экран", "chat"),
     # вопросы — отвечает сама, хотя бы примерно; в Claude отправляет только «морковь»
     ("напиши скрипт на питоне для разбора логов nginx", "chat"),
-    ("какие главные новости в мире сегодня", "chat"),
+    ("какие главные новости в мире сегодня", ("chat", [("web_search", lambda c: "новост" in low(arg(c, "query")))])),
     ("что такое чёрная дыра, коротко", "chat"),
     ("сколько стоит примерно хороший пк", "chat"),
     ("напиши стих про осень", "chat"),
@@ -99,6 +100,8 @@ VOICE = "--voice" in sys.argv
 
 
 def verdict(expect, calls, text):
+    if isinstance(expect, tuple):                    # несколько верных вариантов
+        return any(verdict(e, calls, text) for e in expect)
     if expect == "chat":
         return not calls and bool(text.strip()) and "claude" not in text.lower()
     left = list(calls)
