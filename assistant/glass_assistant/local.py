@@ -24,9 +24,6 @@ SYSTEM = """Ты — голосовой ассистент на компьюте
 - power — только если явно просят выключить, перезагрузить или усыпить компьютер.
 В начале сообщения в квадратных скобках — дата и время, это справка, не слова пользователя."""
 
-VOICE_NOTE = ("Этот ответ будет озвучен голосом. Одно-три коротких предложения, без markdown, списков, "
-              "эмодзи и ссылок. Числа, даты и единицы пиши словами, как произносишь.")
-
 SUGGEST_TEXT = "Это лучше спросить у Claude — скажи «морковь»."
 DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 HISTORY_IDLE = 120               # с: разговор с локальной моделью короткий — «а теперь громче»
@@ -159,18 +156,19 @@ class LocalBrain:
         self.history = []
 
     @staticmethod
-    def stamp(text: str, voice: bool) -> str:
+    def stamp(text: str) -> str:
         now = datetime.now()
-        # указание про озвучку — здесь, а не в системном промпте: тот должен оставаться в кэше
-        note = f"; {VOICE_NOTE}" if voice else ""
-        return f"[{now:%Y-%m-%d %H:%M}, {DAYS[now.weekday()]}{note}]\n{text}"
+        return f"[{now:%Y-%m-%d %H:%M}, {DAYS[now.weekday()]}]\n{text}"
 
     async def answer(self, text, voice, on_delta, on_action) -> Reply:
         cfg = config.load()
         await self.server.ensure(cfg)
         if self.history and time.monotonic() - self.last > HISTORY_IDLE:
             self.history = []
-        user = {"role": "user", "content": self.stamp(text, voice)}
+        # спрошено голосом или нет — запрос тот же: указание «ответ озвучат» сбивает модель, и вместо
+        # вызова инструмента она пишет «Устанавливаю громкость…»; ответы и так короткие, числа словами
+        # делает озвучка (numbers.py)
+        user = {"role": "user", "content": self.stamp(text)}
         msgs = [{"role": "system", "content": SYSTEM}, *[m for turn in self.history for m in turn], user]
 
         gate = Gate()

@@ -155,6 +155,14 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(msgs[2]["tool_calls"][0]["function"], {"name": "volume", "arguments": '{"change": 10}'})
         self.assertEqual(msgs[3], {"role": "tool", "tool_call_id": "c1", "content": "Громкость 50%"})
 
+    async def test_voice_does_not_change_request(self):
+        # указание «ответ озвучат» сбивает Gemma: вместо вызова пишет «Устанавливаю громкость…» (eval: 23/34 против 33/34)
+        self.llama.replies = [[text("а")], [text("б")]]
+        await self.ask("громче", voice=False)
+        self.brain.reset()
+        await self.ask("громче", voice=True)
+        self.assertEqual(self.llama.bodies[0]["messages"], self.llama.bodies[1]["messages"])
+
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)
         self.llama.replies = [[text("а")], [text("б")]]

@@ -7,6 +7,7 @@ import asyncio
 import re
 
 from . import config
+from .numbers import spoken
 
 RATE = 48000
 
@@ -125,10 +126,10 @@ class Sentences:
 
 
 def speakable(text: str) -> str:
-    """Убрать то, что вслух не читают: разметку, ссылки, эмодзи."""
+    """Убрать то, что вслух не читают (разметку, ссылки, эмодзи), а числа — словами: Silero цифры глотает."""
     t = re.sub(r"https?://\S+", "", text)
     t = re.sub(r"`{1,3}[^`]*`{1,3}", "", t)
     t = re.sub(r"[*_#>|~^]+", "", t)
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿]", "", t)
     t = t.replace("—", ", ").replace("–", ", ")
-    return " ".join(t.split()).strip()
+    return spoken(" ".join(t.split()).strip())

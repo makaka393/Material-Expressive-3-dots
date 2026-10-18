@@ -50,5 +50,5 @@ register(Tool("volume", "Громкость системы. level — точно
 register(Tool("brightness", "Яркость экрана. level 0-100 или change +/-", {"level": INT, "change": INT}, [], brightness))
 register(Tool("night_light", "Ночной режим (тёплый экран)", {"on": BOOL}, ["on"], night_light))
 register(Tool("do_not_disturb", "Режим «не беспокоить»", {"on": BOOL}, ["on"], do_not_disturb))
-register(Tool(SUGGEST, "Вопрос сложный: нужны свежие данные из интернета, точные факты, код или долгие рассуждения. "
-              "Вызови вместо ответа", {}, [], None, claude=False))
+register(Tool(SUGGEST, "Вопрос не для тебя: написать код или текст, свежие новости и данные из интернета, точные "
+              "факты, долгие рассуждения. Вызови вместо ответа, не обещай сделать сам", {}, [], None, claude=False))
