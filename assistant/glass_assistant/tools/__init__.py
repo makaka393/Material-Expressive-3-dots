@@ -10,7 +10,6 @@ import re
 from .base import Result, Tool
 
 TOOLS: dict[str, Tool] = {}
-SUGGEST = "suggest_claude"     # «спроси у Claude» — смысл ему придаёт локальный мозг
 TIMEOUT = 5
 
 

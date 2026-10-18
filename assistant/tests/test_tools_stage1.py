@@ -87,9 +87,9 @@ class Stage1Test(unittest.IsolatedAsyncioTestCase):
         self.qs.assert_awaited_once_with("notifs", "set", "false")
         self.assertEqual(r, Result(True, "«Не беспокоить» выключено"))
 
-    def test_suggest_registered_not_for_claude(self):
-        self.assertIn(tools.SUGGEST, tools.TOOLS)
-        self.assertNotIn(tools.SUGGEST, [t["name"] for t in tools.anthropic_tools()])
+    def test_no_suggest_tool(self):
+        # «спроси у Claude» от локальной модели раздражал: она так отвечала на всё подряд
+        self.assertNotIn("suggest_claude", tools.TOOLS)
 
 
 if __name__ == "__main__":

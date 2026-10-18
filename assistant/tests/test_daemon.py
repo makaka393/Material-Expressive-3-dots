@@ -25,7 +25,7 @@ class FakeBrain:
             await on_action(a)
         if self.text:
             await on_delta(self.text)
-        return Reply(self.text, self.actions, False)
+        return Reply(self.text, self.actions)
 
     def reset(self):
         pass

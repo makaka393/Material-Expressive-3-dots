@@ -25,7 +25,7 @@ def n(v):
     return v if isinstance(v, (int, float)) else 0
 
 
-# (фраза, ожидание): ожидание — список (инструмент, проверка) | "chat" | "suggest" | набор допустимых вариантов
+# (фраза, ожидание): ожидание — список (инструмент, проверка) | "chat" (ответ словами, без действий)
 CASES = [
     ("поставь на паузу", [("media", lambda c: arg(c, "action") in ("pause", "toggle"))]),
     ("следующий трек", [("media", lambda c: arg(c, "action") == "next")]),
@@ -55,32 +55,35 @@ CASES = [
     ("сколько будет 17 умножить на 23", "chat"),
     ("спасибо", "chat"),
     ("я устал", "chat"),
-    ("как выключить компьютер в линуксе", {"chat", "suggest"}),
+    ("как выключить компьютер в линуксе", "chat"),
     ("не выключай компьютер, я ещё работаю", "chat"),
-    ("открой браузер", {"chat", "suggest"}),          # этап 2 — инструмента ещё нет: не хвататься за чужой
-    ("напиши скрипт на питоне для разбора логов nginx", "suggest"),
-    ("какие главные новости в мире сегодня", "suggest"),
-    ("что такое чёрная дыра, коротко", {"chat", "suggest"}),
+    # инструментов ещё нет (этапы 2–3) — сказать «не умею», а не хвататься за чужой
+    ("открой браузер", "chat"),
+    ("выключи компьютер", "chat"),
+    ("перезагрузи комп", "chat"),
+    ("заблокируй экран", "chat"),
+    # вопросы — отвечает сама, хотя бы примерно; в Claude отправляет только «морковь»
+    ("напиши скрипт на питоне для разбора логов nginx", "chat"),
+    ("какие главные новости в мире сегодня", "chat"),
+    ("что такое чёрная дыра, коротко", "chat"),
+    ("сколько стоит примерно хороший пк", "chat"),
+    ("напиши стих про осень", "chat"),
 ]
 
 
 VOICE = "--voice" in sys.argv
 
 
-def verdict(expect, calls, suggest):
-    if isinstance(expect, set):
-        return any(verdict(e, calls, suggest) for e in expect)
-    if expect == "suggest":
-        return suggest and not calls
+def verdict(expect, calls, text):
     if expect == "chat":
-        return not calls and not suggest
+        return not calls and bool(text.strip()) and "claude" not in text.lower()
     left = list(calls)
     for name, check in expect:
         hit = next((c for c in left if c["name"] == name and check(c)), None)
         if hit is None:
             return False
         left.remove(hit)
-    return not left and not suggest
+    return not left
 
 
 async def main():
@@ -109,11 +112,11 @@ async def main():
                 t = time.monotonic()
                 reply = await brain.answer(text, VOICE, nothing, nothing)
                 times.append(time.monotonic() - t)
-                # tools.run подменён, поэтому вызовы берём из записи (а suggest — из ответа)
-                good = verdict(expect, list(calls), reply.suggest)
+                # tools.run подменён, поэтому вызовы берём из записи
+                good = verdict(expect, list(calls), reply.text)
                 ok += good
                 if not good:
-                    fails.append(f"  ✗ {text} → {calls or ''} {'suggest' if reply.suggest else ''} {reply.text[:60]!r}")
+                    fails.append(f"  ✗ {text} → {calls or ''} {reply.text[:70]!r}")
         print(f"верно {ok}/{len(CASES)}, медиана {statistics.median(times):.2f} с, максимум {max(times):.2f} с")
         print("\n".join(fails))
     finally:

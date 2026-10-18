@@ -84,7 +84,6 @@ class ClaudeTest(unittest.IsolatedAsyncioTestCase):
         reply = await self.ask("привет")
         self.assertEqual(reply.text, "Привет")
         self.assertEqual(self.deltas, ["При", "вет"])
-        self.assertFalse(reply.suggest)
 
     async def test_tool_round(self):
         first = [text_block("Сейчас."), tool_block("t1", "volume", {"change": 10})]
@@ -124,7 +123,6 @@ class ClaudeTest(unittest.IsolatedAsyncioTestCase):
         self.use([(["а"], [text_block("а")], "end_turn")])
         await self.ask("привет")
         self.assertEqual(self.client.calls[0]["tools"], tools.anthropic_tools())
-        self.assertNotIn(tools.SUGGEST, [t["name"] for t in self.client.calls[0]["tools"]])
 
     async def test_history_append_only(self):
         # история только дописывается: следующий запрос начинается ровно с предыдущего

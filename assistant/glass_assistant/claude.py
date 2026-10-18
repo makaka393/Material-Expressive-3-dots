@@ -111,10 +111,10 @@ class ClaudeBrain:
                 if len(parts) == fresh:
                     await say("Тут я помочь не могу.")
                 msgs.append({"role": "assistant", "content": "".join(parts[fresh:])})   # отказ — только текстом
-                return Reply("".join(parts).strip(), actions, False)
+                return Reply("".join(parts).strip(), actions)
             msgs.append({"role": "assistant", "content": echo_blocks(final.content)})
             if final.stop_reason != "tool_use":
-                return Reply("".join(parts).strip(), actions, False)
+                return Reply("".join(parts).strip(), actions)
             results = []
             for b in final.content:
                 if b.type != "tool_use":
@@ -129,7 +129,7 @@ class ClaudeBrain:
                 results.append(result)
             msgs.append({"role": "user", "content": results})
         await say("Не получилось закончить.")
-        return Reply("".join(parts).strip(), actions, False)
+        return Reply("".join(parts).strip(), actions)
 
 
 def echo_blocks(content):

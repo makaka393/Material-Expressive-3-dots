@@ -20,24 +20,32 @@ from . import config, tools
 SYSTEM = """Ты — голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). Отвечай по-русски.
 - Просят что-то сделать — вызови инструмент. Не переспрашивай, если можно разумно догадаться.
 - Несколько действий в одной фразе — несколько вызовов.
-- Вопрос или разговор — ответь сам, одно-два коротких предложения, без markdown.
-- power — только если явно просят выключить, перезагрузить или усыпить компьютер.
+- Подходящего инструмента нет — коротко скажи, что пока так не умеешь. Не вызывай другой инструмент вместо него.
+- Вопрос или разговор — ответь сам, одно-два коротких предложения, без markdown. Не знаешь точно — ответь
+  примерно и скажи, что это примерно.
 В начале сообщения в квадратных скобках — дата и время, это справка, не слова пользователя."""
 
-SUGGEST_TEXT = "Это лучше спросить у Claude — скажи «морковь»."
+CANT_TEXT = "Пока так не умею."
 DAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 HISTORY_IDLE = 120               # с: разговор с локальной моделью короткий — «а теперь громче»
 STAMP = re.compile(r"^\s*\[[^\]]*\]\s*")
 # «Блокирую экран.» без вызова инструмента — модель только пообещала; переспрашиваем с обязательным вызовом
 CLAIM = re.compile(r"^(хорошо,?\s*)?(блокирую|включаю|выключаю|выполняю|перезагружаю|запускаю|открываю|ставлю|"
                    r"делаю|переключаю|убавляю|прибавляю)", re.I)
+# вызов, написанный текстом: «power off», «suggest_claude{}», «media{"action": …» — тоже переспрашиваем.
+# Ассистент отвечает по-русски, так что короткий текст из одной латиницы — не ответ
+PSEUDO = re.compile(r"[\x20-\x7e]*[A-Za-z][\x20-\x7e]*")
+# выход для переспроса: с обязательным вызовом и без него модель хватает любой инструмент
+# (на «открой браузер» выключила «не беспокоить»)
+NOTHING = {"type": "function", "function": {
+    "name": "nothing_fits", "description": "Подходящего инструмента нет — ничего не делать",
+    "parameters": {"type": "object", "properties": {}, "required": []}}}
 
 
 @dataclass
 class Reply:
     text: str
     actions: list = field(default_factory=list)     # [{"name", "args", "ok", "show", "say"}]
-    suggest: bool = False                            # локальная предложила спросить у Claude
 
 
 class LocalServer:
@@ -139,7 +147,7 @@ class Gate:
         return self._decide(STAMP.sub("", self.buf))
 
     def _decide(self, head: str) -> str:
-        if CLAIM.match(head):
+        if CLAIM.match(head) or (len(head.strip()) <= 60 and PSEUDO.fullmatch(head.strip())):
             self.claimed = True
             return ""
         self.open = True
@@ -185,16 +193,17 @@ class LocalBrain:
         if rest:
             shown.append(rest)
             await on_delta(rest)
-        if not calls and gate.claimed:
-            _, calls = await self._complete(msgs, None, tool_choice="required")
+        if not calls and (gate.claimed or not "".join(shown).strip()):
+            # пообещала, написала вызов текстом или промолчала — переспросить; «подходящего нет» — честно сказать
+            _, calls = await self._complete(msgs, None, tool_choice="required", extra=[NOTHING])
+            if not calls or any(c["name"] == NOTHING["function"]["name"] for c in calls):
+                calls = []
+                shown = [CANT_TEXT]
+                await on_delta(CANT_TEXT)
 
-        actions, results, suggest = [], [], False
+        actions, results = [], []
         for i, c in enumerate(calls):
             c["id"] = c["id"] or f"call_{i}"
-            if c["name"] == tools.SUGGEST:
-                suggest = True
-                results.append("спросить у Claude")
-                continue
             res = await tools.run(c["name"], c["arguments"])
             try:
                 args = json.loads(c["arguments"] or "{}")
@@ -206,10 +215,6 @@ class LocalBrain:
             await on_action(action)
 
         reply_text = "".join(shown)
-        if suggest:
-            reply_text = SUGGEST_TEXT
-            await on_delta(SUGGEST_TEXT)
-
         turn = [user, {"role": "assistant", "content": "".join(shown) or None,
                        **({"tool_calls": [{"id": c["id"], "type": "function",
                                            "function": {"name": c["name"], "arguments": c["arguments"]}}
@@ -217,11 +222,11 @@ class LocalBrain:
         turn += [{"role": "tool", "tool_call_id": c["id"], "content": r} for c, r in zip(calls, results)]
         self.history = (self.history + [turn])[-cfg["local_history_turns"]:]
         self.last = time.monotonic()
-        return Reply(reply_text, actions, suggest)
+        return Reply(reply_text, actions)
 
-    async def _complete(self, msgs, on_text, tool_choice=None):
+    async def _complete(self, msgs, on_text, tool_choice=None, extra=()):
         """Потоковый запрос; текст — в on_text по кускам, вызовы собираются из кусков. → (текст, вызовы)."""
-        body = {"messages": msgs, "tools": tools.openai_tools(), "stream": True, "temperature": 0.2,
+        body = {"messages": msgs, "tools": tools.openai_tools() + list(extra), "stream": True, "temperature": 0.2,
                 "max_tokens": 600, "cache_prompt": True}
         if tool_choice:
             body["tool_choice"] = tool_choice

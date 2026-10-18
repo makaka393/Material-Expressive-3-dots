@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from glass_assistant import config, tools
-from glass_assistant.local import LocalBrain, LocalServer, Reply
+from glass_assistant.local import Gate, LocalBrain, LocalServer, Reply
 from glass_assistant.tools.base import Result, Tool
 
 
@@ -99,7 +99,7 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.llama.replies = [[text("[2026-10-18 14:05, "), text("воскресенье] "), text("Привет"), text("!")]]
         reply = await self.ask("привет")
         self.assertEqual("".join(self.deltas), "Привет!")
-        self.assertEqual(reply, Reply("Привет!", [], False))
+        self.assertEqual(reply, Reply("Привет!", []))
 
     async def test_tool_call_from_chunks(self):
         self.llama.replies = [[call(0, "volume", '{"cha', id="c1"), call(0, args='nge": 10}')]]
@@ -124,12 +124,45 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([a["name"] for a in reply.actions], ["broken", "volume"])
         self.assertEqual([a["ok"] for a in reply.actions], [False, True])
 
-    async def test_suggest(self):
-        self.llama.replies = [[call(0, tools.SUGGEST, "{}", id="s")]]
-        reply = await self.ask("докажи гипотезу римана")
-        self.assertTrue(reply.suggest)
-        self.assertEqual(reply.text, "Это лучше спросить у Claude — скажи «морковь».")
-        self.assertEqual("".join(self.deltas), reply.text)
+    async def test_pseudo_call_text_retries_with_escape(self):
+        # модель написала вызов текстом («power off», «suggest_claude{}») — переспрашиваем с обязательным
+        # вызовом, но с выходом «подходящего нет»: иначе она хватает любой (было do_not_disturb на «открой браузер»)
+        self.llama.replies = [[text("power off")], [call(0, "nothing_fits", "{}", id="n")]]
+        reply = await self.ask("выключи компьютер")
+        retry = self.llama.bodies[1]
+        self.assertEqual(retry.get("tool_choice"), "required")
+        self.assertIn("nothing_fits", [t["function"]["name"] for t in retry["tools"]])
+        self.assertNotIn("nothing_fits", [t["function"]["name"] for t in self.llama.bodies[0]["tools"]])
+        self.assertEqual(ran, [])
+        self.assertEqual(reply.text, "Пока так не умею.")
+        self.assertEqual(self.deltas, ["Пока так не умею."])
+
+    async def test_long_pseudo_call_not_leaked(self):
+        self.llama.replies = [[text('media{"act'), text('ion": "next"}')], [call(0, "volume", '{"change": 10}', id="v")]]
+        await self.ask("следующий")
+        self.assertEqual(self.deltas, [])
+        self.assertEqual(ran, [{"change": 10}])
+
+    async def test_empty_answer_retries(self):
+        self.llama.replies = [[text("[2026-10-18 14:05, воскресенье] ")], [call(0, "volume", '{"change": 10}', id="v")]]
+        await self.ask("громче")
+        self.assertEqual(ran, [{"change": 10}])
+
+    async def test_retry_without_call_says_cant(self):
+        self.llama.replies = [[text("Открываю браузер.")], [text("Открываю.")]]
+        reply = await self.ask("открой браузер")
+        self.assertEqual(ran, [])
+        self.assertEqual(reply.text, "Пока так не умею.")
+        self.assertEqual(self.deltas, ["Пока так не умею."])
+
+    async def test_cant_not_in_history_as_call(self):
+        # nothing_fits нет в обычном списке инструментов — в истории только текст
+        self.llama.replies = [[text("power off")], [call(0, "nothing_fits", "{}", id="n")], [text("ок")]]
+        await self.ask("выключи компьютер")
+        await self.ask("ладно")
+        assistant = [m for m in self.llama.bodies[2]["messages"] if m["role"] == "assistant"][0]
+        self.assertEqual(assistant["content"], "Пока так не умею.")
+        self.assertNotIn("tool_calls", assistant)
 
     async def test_history_kept_and_trimmed(self):
         for i in range(7):
@@ -170,6 +203,24 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         await self.ask("привет", voice=True)
         self.assertEqual(self.llama.bodies[0]["messages"][0], self.llama.bodies[1]["messages"][0])
         self.assertEqual(self.llama.bodies[0]["tools"], self.llama.bodies[1]["tools"])
+
+
+class GateTest(unittest.TestCase):
+    def run_gate(self, chunks):
+        g = Gate()
+        out = "".join(g.feed(c) for c in chunks) + g.flush()
+        return out, g.claimed
+
+    def test_russian_answer_with_english_word_passes(self):
+        self.assertEqual(self.run_gate(["Spotify (музыкальный ", "сервис) уже играет."]),
+                         ("Spotify (музыкальный сервис) уже играет.", False))
+
+    def test_ascii_only_short_text_is_pseudo_call(self):
+        for chunks in (["power off"], ["Suggest Claude"], ["suggest_claude{}"], ['media{"act', 'ion": "next"}']):
+            self.assertEqual(self.run_gate(chunks), ("", True), chunks)
+
+    def test_stamp_stripped(self):
+        self.assertEqual(self.run_gate(["[2026-10-18 14:05, воскресенье]\n", "Привет!"]), ("Привет!", False))
 
 
 class FakeProc:

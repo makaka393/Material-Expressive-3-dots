@@ -2,7 +2,7 @@
 чтобы её ползунки и значки не разошлись с тем, что сделал ассистент."""
 import re
 
-from . import SUGGEST, base, register
+from . import base, register
 from .base import Result, Tool
 
 SINK = "@DEFAULT_AUDIO_SINK@"
@@ -50,5 +50,3 @@ register(Tool("volume", "Громкость системы. level — точно
 register(Tool("brightness", "Яркость экрана. level 0-100 или change +/-", {"level": INT, "change": INT}, [], brightness))
 register(Tool("night_light", "Ночной режим (тёплый экран)", {"on": BOOL}, ["on"], night_light))
 register(Tool("do_not_disturb", "Режим «не беспокоить»", {"on": BOOL}, ["on"], do_not_disturb))
-register(Tool(SUGGEST, "Вопрос не для тебя: написать код или текст, свежие новости и данные из интернета, точные "
-              "факты, долгие рассуждения. Вызови вместо ответа, не обещай сделать сам", {}, [], None, claude=False))
