@@ -128,7 +128,7 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.llama.replies = [[call(0, tools.SUGGEST, "{}", id="s")]]
         reply = await self.ask("докажи гипотезу римана")
         self.assertTrue(reply.suggest)
-        self.assertEqual(reply.text, "Это лучше спросить у Claude — скажи «морковка».")
+        self.assertEqual(reply.text, "Это лучше спросить у Claude — скажи «морковь».")
         self.assertEqual("".join(self.deltas), reply.text)
 
     async def test_history_kept_and_trimmed(self):
