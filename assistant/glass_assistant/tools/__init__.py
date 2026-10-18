@@ -68,4 +68,4 @@ async def run(name: str, args) -> Result:
         return Result(False, f"Не получилось: {e}")
 
 
-from . import media, system  # noqa: E402,F401 — регистрируют свои инструменты
+from . import apps, media, system  # noqa: E402,F401 — регистрируют свои инструменты

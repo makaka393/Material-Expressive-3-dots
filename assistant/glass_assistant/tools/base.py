@@ -1,5 +1,7 @@
 """Основа инструментов: описание, результат и запуск команд."""
 import asyncio
+import json
+import shlex
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
@@ -38,3 +40,21 @@ async def sh(*argv: str, timeout: float = 5) -> str:
 async def qs(target: str, fn: str, *args) -> str:
     """Вызов IPC оболочки: qs ipc -c glass call <target> <fn> …"""
     return await sh("qs", "ipc", "-c", "glass", "call", target, fn, *map(str, args))
+
+
+def lua_str(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+async def hypr(lua: str) -> str:
+    """Диспетчер Hyprland. Конфиг на Lua — и dispatch принимает Lua: hl.dsp.focus({ workspace = 2 })."""
+    return await sh("hyprctl", "dispatch", lua)
+
+
+async def clients() -> list:
+    return json.loads(await sh("hyprctl", "clients", "-j") or "[]")
+
+
+async def launch(*argv: str) -> str:
+    """Запустить программу руками Hyprland, а не службы: процессы службы systemd убивает при её перезапуске."""
+    return await hypr(f"hl.dsp.exec_cmd({lua_str(' '.join(shlex.quote(a) for a in argv))})")
