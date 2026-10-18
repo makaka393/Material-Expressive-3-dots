@@ -109,7 +109,7 @@ class Daemon:
         if to != "claude" and cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))             # и локальная модель
         level = lambda v: self.emit("level", v=round(v, 3))
-        pause = float(cfg.get("pause") or 1.3)
+        pause = float(cfg.get("pause") or 2.0)
         audio = await (record_utterance(cfg["mic"], level, max_wait=FOLLOW_WAIT, tail=pause) if depth
                        else record_utterance(cfg["mic"], level, tail=pause))
         if audio is None:
@@ -238,7 +238,7 @@ class Daemon:
                     talking_for += FRAME / RATE if talking else 0
                     quiet = 0.0 if talking else quiet + FRAME / RATE
                 # «Обсидиан… выкрути яркость» с паузой — одна фраза; длинной команде — до 12 с
-                if chunks and (quiet > float(cfg.get("pause") or 1.3) or len(chunks) * FRAME / RATE > 12):
+                if chunks and (quiet > float(cfg.get("pause") or 2.0) or len(chunks) * FRAME / RATE > 12):
                     break
         if not chunks or talking_for < 0.2:                  # «Обс» — короче полсекунды
             return

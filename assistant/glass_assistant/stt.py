@@ -58,7 +58,7 @@ class Vad:
         return loud
 
 
-async def record_utterance(source, on_level, max_wait=6.0, max_len=30.0, tail=1.3, frames=None):
+async def record_utterance(source, on_level, max_wait=6.0, max_len=30.0, tail=2.0, frames=None):
     """Ждёт начала речи (до max_wait с) и пишет до паузы tail с (настройка «пауза в конце фразы»: при 0,75 с
     фразу обрывало на раздумье посреди неё). Возвращает int16 или None. frames — кадры вместо микрофона (тесты)."""
     if frames is not None:

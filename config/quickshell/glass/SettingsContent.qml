@@ -829,8 +829,8 @@ Item {
             Label { topPadding: 6; text: I18n.t("Пауза в конце фразы", "Pause before I stop listening"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             TunerChoice {
                 width: parent.width
-                options: [{ id: "0.8", t: I18n.t("Короткая · 0,8 с", "Short · 0.8 s") }, { id: "1.3", t: I18n.t("Обычная · 1,3 с", "Normal · 1.3 s") },
-                          { id: "2", t: I18n.t("Длинная · 2 с", "Long · 2 s") }]
+                options: [{ id: "1.5", t: I18n.t("Короче · 1,5 с", "Shorter · 1.5 s") }, { id: "2", t: I18n.t("Обычная · 2 с", "Normal · 2 s") },
+                          { id: "3", t: I18n.t("Длинная · 3 с", "Long · 3 s") }]
                 current: String(Assistant.cfg.pause)
                 onPicked: v => Assistant.cfg.pause = parseFloat(v)
             }

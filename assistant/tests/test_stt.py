@@ -40,7 +40,7 @@ class RecordTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(len(audio) / RATE, 2.2)
 
     async def test_default_pause(self):
-        self.assertEqual(config.DEFAULTS["pause"], 1.3)
+        self.assertEqual(config.DEFAULTS["pause"], 2.0)
 
     async def test_silence_only(self):
         self.assertIsNone(await record_utterance("", level, max_wait=0.5, frames=agen(frames([("quiet", 2.0)]))))
