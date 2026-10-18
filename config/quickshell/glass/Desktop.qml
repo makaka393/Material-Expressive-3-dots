@@ -10,7 +10,7 @@ import Quickshell.Wayland
 // фон, цвет, прозрачность, стиль — как на Samsung), удаляются крестиком, добавляются из каталога.
 //
 // Размытые обои считаются здесь один раз на смену обоев (MultiEffect) — это подложка «стекла»
-// виджетов (Widgets.backdrop) и фон правки. Своё гладкое размытие вместо блюра Hyprland: без зерна
+// виджетов (glassBackdrop — берут только виджеты этого окна) и фон правки. Своё гладкое размытие вместо блюра Hyprland: без зерна
 // и без ореолов вокруг текста.
 Variants {
     model: Quickshell.screens.slice(0, 1)
@@ -87,7 +87,7 @@ Variants {
             saturation: 0.08
         }
         ShaderEffectSource { id: blurTex; sourceItem: wallBlur; hideSource: true; live: true; smooth: true; visible: false; width: 1; height: 1 }
-        Binding { target: Widgets; property: "backdrop"; value: blurTex }
+        readonly property var glassBackdrop: blurTex
 
         // ── пустое место
         MouseArea {

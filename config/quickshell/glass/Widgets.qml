@@ -86,7 +86,6 @@ Singleton {
     property string pickType: "clock"    // какой виджет открыт в каталоге (вкладка слева)
     property string tuning: ""           // wid виджета, у которого открыта панель «Настроить»
     property int rev: 0                  // растёт при каждой правке настроек виджета — для привязок
-    property var backdrop: null          // размытые обои (текстура рабочего стола) — подложка «стекла» виджетов
     property string leaving: ""          // wid виджета, который сейчас уезжает (анимация удаления)
     property string fresh: ""            // wid только что добавленного (анимация появления)
     property int cols: 20                // размер сетки — сообщает Desktop по своему экрану

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import Quickshell
 
 // Подложка виджета рабочего стола и цвета для его содержимого. Как выглядит — настраивается
 // у каждого виджета («Настроить» в режиме правки, как на Samsung); по умолчанию — как оболочка:
@@ -8,7 +9,7 @@ import QtQuick.Window
 //         "none"  — без подложки, текст прямо на обоях (как «Коротко о главном»);
 //   tone  "primary" | "secondary" | "tertiary" | "neutral" — какой цвет темы;
 //   alpha — сила цвета 0…1 (по умолчанию — прозрачность из настроек оболочки).
-// Размытые обои — общая текстура рабочего стола (Widgets.backdrop, Desktop.qml): гладкие, без
+// Размытые обои — текстура рабочего стола (glassBackdrop у окна Desktop.qml): гладкие, без
 // зерна блюра Hyprland. Шейдер — shaders/glass.frag.
 Item {
     id: s
@@ -26,6 +27,9 @@ Item {
     readonly property string toneNow: ["primary", "secondary", "tertiary", "neutral"].indexOf(cfg.tone) >= 0 ? cfg.tone : tone
     readonly property real alpha: typeof cfg.alpha === "number" ? cfg.alpha : (Theme.m3 ? Config.m3Opacity : Config.glassOpacity)
     readonly property bool bare: bg === "none"
+    // размытые обои — только своего окна: ссылка на текстуру другого окна роняла оболочку, когда окно
+    // рабочего стола пересоздавалось (монитор пропал и вернулся). В других окнах (AOD, замок) — нет
+    readonly property var backdrop: QsWindow.window ? (QsWindow.window.glassBackdrop ?? null) : null
 
     readonly property color container: toneNow === "secondary" ? Theme.secondaryContainer
                                      : toneNow === "tertiary" ? Theme.tertiaryContainer
@@ -52,7 +56,7 @@ Item {
     ShaderEffect {
         id: glass
         anchors.fill: parent
-        visible: !s.bare && !!Widgets.backdrop
+        visible: !s.bare && !!s.backdrop
         fragmentShader: "shaders/glass.frag.qsb"
         property vector2d res: Qt.vector2d(Math.max(1, s.Window.width), Math.max(1, s.Window.height))
         property vector2d size: Qt.vector2d(width, height)
@@ -68,14 +72,14 @@ Item {
         property real base: s.shape === "clover" ? 0.82 : s.shape === "hex" ? 0.93 : s.shape === "circle" ? 1 : 0.94
         property real amp: s.shape === "clover" ? 0.18 : s.shape === "hex" ? 0.07 : s.shape === "circle" ? 0 : 0.06
         property color tint: s.tint
-        property var backdrop: Widgets.backdrop
+        property var backdrop: s.backdrop
         Behavior on amount { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
         Behavior on tint { ColorAnimation { duration: 350 } }
     }
     // пока текстуры обоев нет (первые миги после запуска) — просто цвет
     Rectangle {
         anchors.fill: parent
-        visible: !s.bare && !Widgets.backdrop
+        visible: !s.bare && !s.backdrop
         radius: s.shape === "rect" ? Math.min(s.radius, width / 2, height / 2) : width / 2
         color: Qt.alpha(s.tint, Math.max(0.3, s.alpha))
     }
