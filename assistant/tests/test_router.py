@@ -44,21 +44,24 @@ class DefaultWordsTest(unittest.TestCase):
         for t in ("морковь, почему небо синее", "Морковка, почему небо синее", "морковку почему небо синее"):
             self.assertEqual(route(t, config.DEFAULTS), Route("claude", "почему небо синее", False), t)
 
-    def test_obsidian_then_morkov(self):
-        rest = strip_word("Обсидиан, морковь, почему небо синее?", config.DEFAULTS["wake_words"])
+    def test_name_then_morkov(self):
+        from glass_assistant.router import wake
+        rest = wake("Ирис, морковь, почему небо синее?", config.wake_words(config.DEFAULTS))
         self.assertEqual(route(rest, config.DEFAULTS), Route("claude", "почему небо синее?", False))
 
     def test_quotes_stripped(self):
         # Whisper иногда берёт фразу в «ёлочки»
         self.assertEqual(strip_word("«Обсидиан, морковь, почему?»", ["обсидиан"]), "морковь, почему?")
 
-    def test_obsidian_latin(self):
-        # …и пишет «Obsidian» латиницей
-        rest = strip_word("Obsidian, выкруйте яркость на максимум.", config.DEFAULTS["wake_words"])
-        self.assertEqual(rest, "выкруйте яркость на максимум.")
+    def test_name_latin(self):
+        # Whisper иногда пишет имя латиницей
+        from glass_assistant.router import wake
+        self.assertEqual(wake("Iris, выкрути яркость на максимум.", config.wake_words(config.DEFAULTS)),
+                         "выкрути яркость на максимум.")
 
-    def test_obsidian_plain_is_local(self):
-        rest = strip_word("Обсидиан, выкрути яркость на максимум", config.DEFAULTS["wake_words"])
+    def test_name_plain_is_local(self):
+        from glass_assistant.router import wake
+        rest = wake("Ирис, выкрути яркость на максимум", config.wake_words(config.DEFAULTS))
         self.assertEqual(route(rest, config.DEFAULTS), Route("local", "выкрути яркость на максимум", False))
 
 
@@ -71,6 +74,36 @@ class StripWordTest(unittest.TestCase):
         self.assertIsNone(strip_word("какая погода", ["гласс"]))
 
 
+class NameTest(unittest.TestCase):
+    """Имя ассистента — оно же слово-активатор; варианты проверены синтез → Whisper: 8 из 8."""
+
+    def test_default_name(self):
+        self.assertEqual(config.DEFAULTS["name"], "Ирис")
+
+    def test_wake_words_follow_name(self):
+        from glass_assistant.router import wake
+        for name, heard in (("Ирис", "Ирис, громче"), ("Аврора", "Аврора, громче"), ("Кайра", "Кайра, громче"),
+                            ("Юна", "Юна, громче")):
+            self.assertEqual(wake(heard, config.wake_words({**config.DEFAULTS, "name": name})), "громче", name)
+
+    def test_obsidian_retired(self):
+        from glass_assistant.router import wake
+        self.assertIsNone(wake("Обсидиан, громче", config.wake_words(config.DEFAULTS)))
+
+    def test_no_false_names(self):
+        from glass_assistant.router import wake
+        for heard in ("Ирина, привет", "ириска упала", "и рис купи"):
+            self.assertIsNone(wake(heard, config.wake_words(config.DEFAULTS)), heard)
+
+    def test_extra_wake_words_kept(self):
+        cfg = {**config.DEFAULTS, "wake_words": ["джарвис"]}
+        self.assertIn("джарвис", config.wake_words(cfg))
+
+    def test_gender_from_voice(self):
+        self.assertTrue(config.female({**config.DEFAULTS, "voice": "baya"}))
+        self.assertFalse(config.female({**config.DEFAULTS, "voice": "aidar"}))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -78,7 +111,7 @@ if __name__ == "__main__":
 class WakeTest(unittest.TestCase):
     """«Обсидиан», «обс», «обси», «обсик» — и как их слышит Whisper (синтез Silero → Whisper, 2026-10-18)."""
 
-    W = config.DEFAULTS["wake_words"]
+    W = ["обсидиан", "обс", "обси", "обсик", "obsidian", "obs"]
 
     def test_heard_variants(self):
         from glass_assistant.router import wake

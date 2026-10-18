@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1100 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1180 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -718,8 +718,8 @@ Item {
             spacing: 4
             Label { text: I18n.t("Ассистент", "Assistant"); size: 26; weight: 750; elide: Text.ElideNone }
             Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
-                    text: I18n.t("«Обсидиан» или Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
-                                 "“Obsidian” or Super+A — by voice, Super+Space then “?” — by text. A local model answers; “morkov” first, “??” or Super+Alt+A — Claude.") }
+                    text: I18n.t("«" + Assistant.cfg.name + "» или Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
+                                 "“" + Assistant.cfg.name + "” or Super+A — by voice, Super+Space then “?” — by text. A local model answers; “morkov” first, “??” or Super+Alt+A — Claude.") }
         }
 
         // ── состояние службы и ключа
@@ -747,7 +747,15 @@ Item {
         Column {
             anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
             spacing: 10
-            Label { text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            // имя — оно же слово-активатор; все четыре проверены: Whisper узнаёт их 8 раз из 8
+            Label { text: I18n.t("Имя — им же и зовёшь", "Name — also the wake word"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            TunerChoice {
+                width: parent.width
+                options: [{ id: "Ирис", t: "Ирис" }, { id: "Аврора", t: "Аврора" }, { id: "Кайра", t: "Кайра" }, { id: "Юна", t: "Юна" }]
+                current: Assistant.cfg.name
+                onPicked: v => Assistant.cfg.name = v
+            }
+            Label { topPadding: 6; text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             TunerChoice {
                 width: parent.width
                 options: [{ id: "claude-opus-5-5", icon: "psychology", t: "Opus 5.5" },
@@ -796,15 +804,15 @@ Item {
                 Label { text: I18n.t("Женский", "Female"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
                 TunerChoice {
                     width: parent.width
-                    options: [{ id: "xenia", icon: "face_3", t: "Ксения" }, { id: "kseniya", icon: "face_3", t: "Ксюша" },
-                              { id: "baya", icon: "face_3", t: "Бая" }]
+                    options: [{ id: "xenia", icon: "face_3", t: I18n.t("Шёлк", "Silk") }, { id: "kseniya", icon: "face_3", t: I18n.t("Мята", "Mint") },
+                              { id: "baya", icon: "face_3", t: I18n.t("Карамель", "Caramel") }]
                     current: Assistant.cfg.voice
                     onPicked: v => voiceBox.preview({ voice: v })
                 }
                 Label { topPadding: 4; text: I18n.t("Мужской", "Male"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
                 TunerChoice {
                     width: parent.width
-                    options: [{ id: "aidar", icon: "face_6", t: "Айдар" }, { id: "eugene", icon: "face_6", t: "Евгений" }]
+                    options: [{ id: "aidar", icon: "face_6", t: I18n.t("Бархат", "Velvet") }, { id: "eugene", icon: "face_6", t: I18n.t("Гранит", "Granite") }]
                     current: Assistant.cfg.voice
                     onPicked: v => voiceBox.preview({ voice: v })
                 }
@@ -838,9 +846,9 @@ Item {
                 model: [
                     { k: "speakVoice", icon: "record_voice_over", t: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") },
                     { k: "speakTyped", icon: "keyboard", t: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") },
-                    { k: "wake", icon: "hearing", t: I18n.t("Слово-активатор: «" + (Assistant.cfg.wakeWords[0] || "обсидиан") + "»; «" + (Assistant.cfg.claudeWords[0] || "морковь") + "» после него — Claude",
-                                                         "Wake word: “" + (Assistant.cfg.wakeWords[0] || "obsidian") + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") },
-                    { k: "followUp", icon: "forum", t: I18n.t("Разговор: после ответа слушать продолжение без «обсидиан»",
+                    { k: "wake", icon: "hearing", t: I18n.t("Звать по имени: «" + Assistant.cfg.name + "»; «" + (Assistant.cfg.claudeWords[0] || "морковь") + "» после него — Claude",
+                                                         "Wake by name: “" + Assistant.cfg.name + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") },
+                    { k: "followUp", icon: "forum", t: I18n.t("Разговор: после ответа слушать продолжение без имени",
                                                               "Conversation: after an answer, keep listening without the wake word") }
                 ]
                 Rectangle {

@@ -26,8 +26,8 @@ DEFAULTS = {
     "wake": False,               # слушать слово-активатор
     "follow_up": True,
     "pause": 2.0,                # с тишины — конец фразы (1,5 / 2 / 3); слову-активатору — столько же           # после голосового ответа слушать продолжение без слова-активатора
-    # слово-активатор и его короткие формы; сравниваются по звучанию (router.wake)
-    "wake_words": ["обсидиан", "обс", "обси", "обсик", "obsidian", "obs"],
+    "name": "Ирис",              # имя — оно же слово-активатор (NAMES)
+    "wake_words": [],            # ещё слова-активаторы, кроме имени; сравниваются по звучанию (router.wake)
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново
@@ -39,6 +39,20 @@ DEFAULTS = {
     "whisper_idle_min": 15,
     "tts_model": str(DATA / "models/tts/v5_ru.pt"),
 }
+
+
+# имена на выбор и как их пишет Whisper; каждое проверено синтез → Whisper: 8 из 8 («Нова» — 4 из 8: «На ва»)
+NAMES = {"Ирис": ["ирис", "iris"], "Аврора": ["аврора", "aurora"], "Кайра": ["кайра", "kaira"], "Юна": ["юна", "yuna"]}
+FEMALE = {"xenia", "kseniya", "baya"}         # голоса Silero; aidar, eugene — мужские
+
+
+def wake_words(cfg) -> list:
+    name = cfg.get("name") or DEFAULTS["name"]
+    return NAMES.get(name, [name.lower()]) + list(cfg.get("wake_words") or [])
+
+
+def female(cfg) -> bool:
+    return cfg.get("voice", DEFAULTS["voice"]) in FEMALE
 
 
 def load() -> dict:

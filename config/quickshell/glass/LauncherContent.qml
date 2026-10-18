@@ -380,7 +380,7 @@ Item {
                 color: Theme.fgVariant
                 opacity: root.mode === "all" ? 0 : 1
                 Behavior on opacity { Anim { kind: "effects" } }
-                text: root.mode === "ai" ? I18n.t("Ассистент", "Assistant") : root.mode === "emoji" ? I18n.t("Эмодзи", "Emoji")
+                text: root.mode === "ai" ? Assistant.cfg.name : root.mode === "emoji" ? I18n.t("Эмодзи", "Emoji")
                     : root.mode === "calc" ? I18n.t("Калькулятор", "Calculator") : ""
             }
         }
@@ -533,7 +533,7 @@ Item {
                             }
                             Column {
                                 anchors { left: aiBadge.right; leftMargin: 10; verticalCenter: parent.verticalCenter; right: aiTools.left; rightMargin: 8 }
-                                Label { text: I18n.t("Ассистент", "Assistant"); size: 14; weight: 650; color: Theme.tertiaryContainerFg; elide: Text.ElideNone }
+                                Label { text: Assistant.cfg.name; size: 14; weight: 650; color: Theme.tertiaryContainerFg; elide: Text.ElideNone }
                                 Label {
                                     width: parent.width
                                     text: !Assistant.online ? I18n.t("служба не запущена", "service is not running")

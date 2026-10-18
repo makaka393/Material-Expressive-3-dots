@@ -264,7 +264,7 @@ Island {
                 text: assistBox.st === "listening" ? I18n.t("Слушаю…", "Listening…")
                     : assistBox.st === "transcribing" ? I18n.t("Распознаю…", "Transcribing…")
                     : Assistant.heard !== "" ? "«" + Assistant.heard + "»"
-                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…") : I18n.t("Ассистент", "Assistant")
+                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…") : Assistant.cfg.name
                 size: 14; weight: 700
             }
             Text {

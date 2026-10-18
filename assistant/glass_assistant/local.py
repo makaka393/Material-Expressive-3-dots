@@ -17,7 +17,8 @@ import httpx2
 
 from . import config, memory, tools
 
-SYSTEM = """Ты — голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). Отвечай по-русски.
+SYSTEM = """Ты — {name}, голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). О себе говори
+в {gender} роде. Отвечай по-русски.
 - Просят что-то сделать — вызови инструмент. Не переспрашивай, если можно разумно догадаться.
 - Несколько действий в одной фразе — несколько вызовов.
 - Подходящего инструмента нет — коротко скажи, что пока так не умеешь. Не вызывай другой инструмент вместо него.
@@ -50,6 +51,12 @@ MODES = (["-ngl", "99", "-fit", "off"], ["--fit", "on"], ["-ngl", "8", "-fit", "
 class Reply:
     text: str
     actions: list = field(default_factory=list)     # [{"name", "args", "ok", "show", "say"}]
+
+
+def system(cfg) -> str:
+    """Имя, род по голосу и память меняются редко — промпт (и кэш llama-server) пересчитывается только тогда."""
+    return (SYSTEM.format(name=cfg.get("name") or config.DEFAULTS["name"],
+                          gender="женском" if config.female(cfg) else "мужском") + memory.store.prompt())
 
 
 class LocalServer:
@@ -182,7 +189,7 @@ class LocalBrain:
         # вызова инструмента она пишет «Устанавливаю громкость…»; ответы и так короткие, числа словами
         # делает озвучка (numbers.py)
         user = {"role": "user", "content": self.stamp(text)}
-        msgs = [{"role": "system", "content": SYSTEM + memory.store.prompt()}, *[m for turn in self.history for m in turn], user]
+        msgs = [{"role": "system", "content": system(cfg)}, *[m for turn in self.history for m in turn], user]
 
         gate = Gate()
         shown = []

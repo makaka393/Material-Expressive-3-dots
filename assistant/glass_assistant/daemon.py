@@ -172,7 +172,7 @@ class Daemon:
                 await self.claude_brain.answer(r.text, v, delta, action)
             except UNAVAILABLE as e:
                 print(f"claude недоступен ({type(e).__name__}), отвечает локальная модель", flush=True)
-                await delta("Claude недоступен — отвечаю сама: ")
+                await delta("Claude недоступен — отвечаю " + ("сама" if config.female(cfg) else "сам") + ": ")
                 await self.local_brain.answer(r.text, v, delta, action)
                 backend = "local"
         else:
@@ -246,16 +246,16 @@ class Daemon:
         await self.on_wake(await self.whisper.transcribe(cfg, np.concatenate(chunks)), cfg)
 
     async def on_wake(self, text, cfg):
-        rest = after_wake(text, cfg["wake_words"])
+        rest = after_wake(text, config.wake_words(cfg))
         if rest is None:
             return
         await self.emit("heard", text=text)
         if cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))
         if rest:
-            self.start(self.ask(rest, voice=True))                # «Обсидиан, какая погода?» — сразу вопрос
+            self.start(self.ask(rest, voice=True))                # «Ирис, какая погода?» — сразу вопрос
         else:
-            chime.play("wake")                                    # «Обсидиан!» — звук и слушаем вопрос
+            chime.play("wake")                                    # «Ирис!» — звук и слушаем вопрос
             self.start(self.listen(cfg))
 
     # ── обслуживание: выгрузить простаивающие модели
@@ -351,4 +351,4 @@ class Daemon:
 
 def after_wake(text: str, words) -> str | None:
     """Если фраза начинается с имени ассистента — остаток фразы ("" — только имя), иначе None."""
-    return wake(text, words)                    # «эй, обсидиан …», «обс, …», «Опс, …» — по звучанию
+    return wake(text, words)                    # «эй, Ирис …», «Iris, …» — по звучанию

@@ -205,6 +205,18 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
             await self.ask("как меня зовут")
         self.assertIn("- Пользователя зовут Рома", self.llama.bodies[0]["messages"][0]["content"])
 
+    async def test_name_and_gender_in_system_prompt(self):
+        self.llama.replies = [[text("а")], [text("б")]]
+        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Аврора", "voice": "baya"}):
+            await self.ask("кто ты")
+        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Юна", "voice": "aidar"}):
+            await self.ask("кто ты")
+        first, second = (b["messages"][0]["content"] for b in self.llama.bodies)
+        self.assertIn("Ты — Аврора", first)
+        self.assertIn("в женском роде", first)
+        self.assertIn("Ты — Юна", second)
+        self.assertIn("в мужском роде", second)
+
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)
         self.llama.replies = [[text("а")], [text("б")]]

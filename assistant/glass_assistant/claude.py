@@ -12,8 +12,8 @@ import anthropic
 from . import config, memory, tools
 from .local import Reply
 
-SYSTEM = """Ты — личный ассистент в оболочке glass на компьютере пользователя (Arch Linux, Hyprland, \
-Quickshell). Обычно отвечает локальная модель, а тебя зовут для сложных вопросов: словом «морковь», \
+SYSTEM = """Ты — {name}, личный ассистент в оболочке glass на компьютере пользователя (Arch Linux, Hyprland, \
+Quickshell). О себе говори в {gender} роде. Обычно отвечает локальная модель, а тебя зовут для сложных вопросов: словом «морковь», \
 клавишами Super+Alt+A или «??» в лаунчере.
 
 Как отвечать:
@@ -100,7 +100,8 @@ class ClaudeBrain:
                 fallbacks="default",
                 output_config={"effort": cfg["effort"]},
                 cache_control={"type": "ephemeral"},
-                system=SYSTEM + memory.store.prompt(),
+                system=SYSTEM.format(name=cfg.get("name") or config.DEFAULTS["name"],
+                                     gender="женском" if config.female(cfg) else "мужском") + memory.store.prompt(),
                 tools=tools.anthropic_tools(),
                 messages=msgs,
             ) as stream:

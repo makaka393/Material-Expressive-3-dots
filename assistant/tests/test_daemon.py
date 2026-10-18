@@ -125,7 +125,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Обсидиан.", config.load())
+            await self.d.on_wake("Ирис.", config.load())
         play.assert_called_once_with("wake")
         self.assertEqual(started, ["Daemon.listen"])
 
@@ -133,7 +133,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Обсидиан, следующий трек", config.load())
+            await self.d.on_wake("Ирис, следующий трек", config.load())
         play.assert_not_called()
         self.assertEqual(started, ["Daemon.ask"])
 
