@@ -718,8 +718,8 @@ Item {
             spacing: 4
             Label { text: I18n.t("Ассистент", "Assistant"); size: 26; weight: 750; elide: Text.ElideNone }
             Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
-                    text: I18n.t("Super+A — спросить голосом, Super+Space и «?» — текстом. Думает Claude, без сети — локальная модель.",
-                                 "Super+A — ask by voice, Super+Space then “?” — by text. Claude thinks; offline — a local model.") }
+                    text: I18n.t("«Обсидиан» или Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
+                                 "“Obsidian” or Super+A — by voice, Super+Space then “?” — by text. A local model answers; “morkov” first, “??” or Super+Alt+A — Claude.") }
         }
 
         // ── состояние службы и ключа
