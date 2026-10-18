@@ -7,7 +7,7 @@ import "calc.js" as Calc
 
 // Лаунчер (вместо rofi): строка поиска + результаты.
 //   просто текст — приложения (+ пример посчитается, + поиск в интернете)
-//   =  калькулятор     :  эмодзи     ?  вопрос ассистенту (Claude, без сети — локальная модель; см. Assistant.qml)
+//   =  калькулятор     :  эмодзи     ?  вопрос ассистенту (локальная модель; «??» или «морковь, …» — Claude; см. Assistant.qml)
 // Ошибся раскладкой («ашкуащч») или пишешь по-русски («телеграм») — всё равно найдёт.
 Item {
     id: root
@@ -273,6 +273,7 @@ Item {
         return out.slice(0, 120).map(o => o.x);
     }
     onEmojisChanged: if (mode === "emoji") sel = 0
+    onModeChanged: if (mode === "ai") Assistant.warm()
 
     function pickEmoji(x) {
         Usage.usedEmoji(x[0]);
@@ -503,7 +504,10 @@ Item {
                     radius: 24
                     color: Qt.alpha(Theme.tertiaryContainer, Theme.m3 ? 1 : 0.55)
                     Behavior on implicitHeight { Anim { kind: "fast" } }
-                    readonly property bool mine: Assistant.heard !== "" && Assistant.heard === (row.modelData.title || "").trim() && !Assistant.voice
+                    readonly property bool mine: Assistant.heard !== "" && Assistant.heard === (row.modelData.title || "").trim()
+                                                 && (!Assistant.voice || Assistant.windowed)
+                    readonly property bool toClaude: (row.modelData.title || "").startsWith("?") || /^\s*морков/i.test(row.modelData.title || "")
+                    readonly property string claudeName: "Claude · " + Assistant.cfg.model.replace("claude-", "").replace(/-(\d)-(\d)$/, " $1.$2")
                     readonly property bool working: mine && Assistant.busy && Assistant.answer === ""
                     Connections { target: root; function onNudge() { shake.restart(); } }
                     SequentialAnimation {
@@ -533,10 +537,12 @@ Item {
                                 Label {
                                     width: parent.width
                                     text: !Assistant.online ? I18n.t("служба не запущена", "service is not running")
-                                        : aiCard.mine && Assistant.backend === "local" ? I18n.t("ответила локальная модель · Qwen3.5", "answered locally · Qwen3.5")
-                                        : aiCard.mine && Assistant.backend === "claude" ? "Claude · " + Assistant.cfg.model.replace("claude-", "").replace(/-(\d)-(\d)$/, " $1.$2")
-                                        : Assistant.hasKey ? "Claude · " + Assistant.cfg.model.replace("claude-", "").replace(/-(\d)-(\d)$/, " $1.$2")
-                                        : I18n.t("нет ключа Claude — ответит локальная модель", "no Claude key — the local model will answer")
+                                        : aiCard.mine && Assistant.backend === "local" ? I18n.t("локальная модель · Gemma 4", "local model · Gemma 4")
+                                        : aiCard.mine && Assistant.backend === "claude" ? aiCard.claudeName
+                                        : aiCard.toClaude && Assistant.cfg.backend !== "local"
+                                            ? (Assistant.hasKey ? aiCard.claudeName : I18n.t("нет ключа Claude — ответит локальная модель", "no Claude key — the local model will answer"))
+                                        : Assistant.cfg.backend === "claude" ? aiCard.claudeName
+                                        : I18n.t("локальная модель · «??» — спросить Claude", "local model · “??” — ask Claude")
                                     size: 11; color: Qt.alpha(Theme.tertiaryContainerFg, 0.7)
                                 }
                             }
@@ -576,7 +582,7 @@ Item {
                             width: parent.width
                             visible: !aiCard.mine || aiCard.working
                             text: aiCard.working ? I18n.t("Думаю…", "Thinking…")
-                                : row.modelData.title !== "" ? I18n.t("Enter — спросить. Голосом — Super+A", "Enter — ask. By voice — Super+A")
+                                : row.modelData.title !== "" ? I18n.t("Enter — спросить. Голосом — Super+A, у Claude — Super+Alt+A", "Enter — ask. By voice — Super+A, Claude — Super+Alt+A")
                                 : I18n.t("Напиши вопрос после «?». Голосом — Super+A", "Type a question after “?”. By voice — Super+A")
                             size: 13; weight: 450
                             wrapMode: Text.Wrap; elide: Text.ElideNone

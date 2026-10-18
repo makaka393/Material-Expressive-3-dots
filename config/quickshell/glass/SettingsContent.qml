@@ -759,9 +759,9 @@ Item {
             Label { topPadding: 6; text: I18n.t("Где думать", "Where to think"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
             TunerChoice {
                 width: parent.width
-                options: [{ id: "auto", icon: "auto_mode", t: I18n.t("Авто", "Auto") },
-                          { id: "claude", icon: "cloud", t: "Claude" },
-                          { id: "local", icon: "memory", t: I18n.t("Локально", "Local") }]
+                options: [{ id: "auto", icon: "auto_mode", t: I18n.t("Локально + Claude по слову", "Local + Claude on cue") },
+                          { id: "claude", icon: "cloud", t: I18n.t("Всегда Claude", "Always Claude") },
+                          { id: "local", icon: "memory", t: I18n.t("Только локально", "Local only") }]
                 current: Assistant.cfg.backend
                 onPicked: v => Assistant.cfg.backend = v
             }
@@ -791,7 +791,8 @@ Item {
                 model: [
                     { k: "speakVoice", icon: "record_voice_over", t: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") },
                     { k: "speakTyped", icon: "keyboard", t: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") },
-                    { k: "wake", icon: "hearing", t: I18n.t("Слово-активатор: «Гласс», «Ассистент», «Джарвис»", "Wake word: “Glass”, “Assistant”, “Jarvis”") }
+                    { k: "wake", icon: "hearing", t: I18n.t("Слово-активатор: «" + (Assistant.cfg.wakeWords[0] || "обсидиан") + "»; «" + (Assistant.cfg.claudeWords[0] || "морковь") + "» после него — Claude",
+                                                         "Wake word: “" + (Assistant.cfg.wakeWords[0] || "obsidian") + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") }
                 ]
                 Rectangle {
                     id: asOpt

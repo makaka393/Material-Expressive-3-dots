@@ -12,3 +12,6 @@ fi
 for p in $(pgrep -x spotify; pgrep -x Discord; pgrep -x mpvpaper); do
     renice -n 10 -p "$p" >/dev/null
 done
+
+# локальная модель ассистента держит ~3 ГБ видеопамяти — игре нужнее (загрузится снова по Super+A)
+qs ipc -c glass call assistant unload >/dev/null 2>&1 || true

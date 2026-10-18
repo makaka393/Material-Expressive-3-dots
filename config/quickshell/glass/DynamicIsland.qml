@@ -18,7 +18,7 @@ Island {
     readonly property bool hasPlayer: player !== null && (player.trackTitle ?? "") !== ""
 
     // ассистент важнее всего: с ним сейчас разговаривают голосом
-    readonly property bool assist: Assistant.showing && Assistant.voice && mode === "compact"
+    readonly property bool assist: Assistant.showing && Assistant.voice && !Assistant.windowed && mode === "compact"
     // уведомление важнее всплывашки; пока открыт плеер/погода — не перебиваем
     readonly property bool notif: Notifs.popup !== null && mode === "compact" && !assist
     property var lastNotif: null

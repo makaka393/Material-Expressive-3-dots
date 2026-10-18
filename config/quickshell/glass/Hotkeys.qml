@@ -83,6 +83,7 @@ PanelWindow {
     // команды оболочки и скриптов → понятные подписи
     readonly property var known: [
         [/launcher (toggle|open)/, "Лаунчер", "Launcher"], [/launcher emoji/, "Эмодзи", "Emoji"], [/launcher ask/, "Ассистент", "Assistant"],
+        [/assistant listenClaude/, "Спросить Claude голосом", "Ask Claude by voice"], [/assistant listen(?!Claude)/, "Ассистент голосом", "Assistant by voice"],
         [/picker toggle/, "Обои и цвет темы", "Wallpaper & theme"], [/lock lock/, "Заблокировать экран", "Lock screen"],
         [/hotkeys/, "Эта шпаргалка", "This cheat sheet"], [/settings toggle/, "Настройки оболочки", "Shell settings"],
         [/screenshot\.sh region/, "Скриншот области", "Screenshot: region"], [/screenshot\.sh pretty/, "Скриншот в рамке", "Screenshot: framed"],
