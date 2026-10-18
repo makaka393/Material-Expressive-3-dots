@@ -73,3 +73,25 @@ class StripWordTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WakeTest(unittest.TestCase):
+    """«Обсидиан», «обс», «обси», «обсик» — и как их слышит Whisper (синтез Silero → Whisper, 2026-10-18)."""
+
+    W = config.DEFAULTS["wake_words"]
+
+    def test_heard_variants(self):
+        from glass_assistant.router import wake
+        for heard, rest in [("Обсидиан.", ""), ("обсидиан", ""), ("Обсидианчик, привет!", "привет!"),
+                            ("Obsidian, выкрути яркость", "выкрути яркость"), ("Опс.", ""), ("Обс.", ""),
+                            ("Обс, следующий трек.", "следующий трек."), ("Опс, следующий трек.", "следующий трек."),
+                            ("Обси.", ""), ("Общи.", ""), ("Обсе.", ""), ("ОПСИ, открой телегу.", "открой телегу."),
+                            ("а псих громче.", "громче."), ("А ПСИК громче.", "громче."), ("OBS, громче", "громче"),
+                            ("эй, обси, громче", "громче"), ("«Обсидиан, морковь, почему?»", "морковь, почему?")]:
+            self.assertEqual(wake(heard, self.W), rest, heard)
+
+    def test_not_wake(self):
+        from glass_assistant.router import wake
+        for heard in ("обсудим планы на завтра", "обслуживание закончилось", "обстановка нормальная", "а потом домой",
+                      "псих какой-то", "купи хлеба", "", "Продолжение следует..."):
+            self.assertIsNone(wake(heard, self.W), heard)

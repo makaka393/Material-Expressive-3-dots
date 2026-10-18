@@ -33,7 +33,7 @@ import httpx2
 from . import chime, config
 from .claude import UNAVAILABLE, ClaudeBrain
 from .local import LocalBrain, LocalServer
-from .router import route, strip_word
+from .router import route, wake
 from .stt import Mic, Vad, Whisper, record_utterance, FRAME, RATE
 from .tts import Sentences, Voice
 
@@ -211,7 +211,7 @@ class Daemon:
                     quiet = 0.0 if talking else quiet + FRAME / RATE
                 if chunks and (quiet > 0.6 or len(chunks) * FRAME / RATE > 6):
                     break
-        if not chunks or talking_for < 0.3:
+        if not chunks or talking_for < 0.2:                  # «Обс» — короче полсекунды
             return
         import numpy as np
         await self.on_wake(await self.whisper.transcribe(cfg, np.concatenate(chunks)), cfg)
@@ -321,4 +321,4 @@ class Daemon:
 
 def after_wake(text: str, words) -> str | None:
     """Если фраза начинается с имени ассистента — остаток фразы ("" — только имя), иначе None."""
-    return strip_word(text, words)              # «эй, гласс …», «окей гласс …»
+    return wake(text, words)                    # «эй, обсидиан …», «обс, …», «Опс, …» — по звучанию

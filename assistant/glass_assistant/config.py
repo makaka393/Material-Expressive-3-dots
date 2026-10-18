@@ -24,7 +24,8 @@ DEFAULTS = {
     "voice_pitch": "medium",     # тон: low | medium | high
     "voice_rate": "medium",      # темп: slow | medium | fast
     "wake": False,               # слушать слово-активатор
-    "wake_words": ["обсидиан", "obsidian"],   # Whisper иногда пишет латиницей
+    # слово-активатор и его короткие формы; сравниваются по звучанию (router.wake)
+    "wake_words": ["обсидиан", "обс", "обси", "обсик", "obsidian", "obs"],
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново
