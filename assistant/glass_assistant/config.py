@@ -21,12 +21,12 @@ DEFAULTS = {
     "speak_voice": True,         # озвучивать ответы на голосовые вопросы
     "speak_typed": False,        # и на вопросы из лаунчера
     "voice": "xenia",            # голос Silero: женские xenia, kseniya, baya; мужские aidar, eugene
-    "voice_pitch": "medium",     # тон: low | medium | high
-    "voice_rate": "medium",      # темп: slow | medium | fast
-    "wake": False,               # слушать слово-активатор
-    "follow_up": True,
-    "pause": 2.0,                # с тишины — конец фразы (1,5 / 2 / 3); слову-активатору — столько же           # после голосового ответа слушать продолжение без слова-активатора
-    "name": "Ирис",              # имя — оно же слово-активатор (NAMES)
+    "voice_tone": 0.0,           # тон: −1 мягче … +1 твёрже (tts.prosody, tts.shape)
+    "voice_speed": 1.0,          # скорость: 0,75 … 1,35
+    "voice_height": 0.0,         # высота: −1 ниже … +1 выше (±15 %)
+    "wake": False,               # слушать имя
+    "follow_up": True,           # после голосового ответа слушать продолжение без имени
+    "pause": 2.0,                # с тишины — конец фразы (1,5 / 2 / 3)
     "wake_words": [],            # ещё слова-активаторы, кроме имени; сравниваются по звучанию (router.wake)
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
     "language": "ru",
@@ -41,14 +41,15 @@ DEFAULTS = {
 }
 
 
-# имена на выбор и как их пишет Whisper; каждое проверено синтез → Whisper: 8 из 8 («Нова» — 4 из 8: «На ва»)
-NAMES = {"Ирис": ["ирис", "iris"], "Аврора": ["аврора", "aurora"], "Кайра": ["кайра", "kaira"], "Юна": ["юна", "yuna"]}
+# Имя ассистента — оно же слово-активатор. Синтез 5 голосами, тон/темп, с шумом → Whisper: «Тори» — 81 из 90,
+# «Ирис» — 64 («И рис», «Ирина», «Юрис»), «Ари» — 76, «Вега» — 69. «Торик» — так Whisper пишет имя, сказанное отдельно
+NAME = "Тори"
+NAME_HEARD = ["тори", "tori", "торик"]
 FEMALE = {"xenia", "kseniya", "baya"}         # голоса Silero; aidar, eugene — мужские
 
 
 def wake_words(cfg) -> list:
-    name = cfg.get("name") or DEFAULTS["name"]
-    return NAMES.get(name, [name.lower()]) + list(cfg.get("wake_words") or [])
+    return NAME_HEARD + list(cfg.get("wake_words") or [])
 
 
 def female(cfg) -> bool:

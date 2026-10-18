@@ -138,7 +138,7 @@ class ClaudeTest(unittest.IsolatedAsyncioTestCase):
     async def test_name_in_system(self):
         self.use([(["а"], [text_block("а")], "end_turn")])
         await self.ask("кто ты")
-        self.assertIn("Ты — Ирис", self.client.calls[0]["system"])
+        self.assertIn("Ты — Тори", self.client.calls[0]["system"])
 
     async def test_history_append_only(self):
         # история только дописывается: следующий запрос начинается ровно с предыдущего

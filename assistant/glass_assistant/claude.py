@@ -100,7 +100,7 @@ class ClaudeBrain:
                 fallbacks="default",
                 output_config={"effort": cfg["effort"]},
                 cache_control={"type": "ephemeral"},
-                system=SYSTEM.format(name=cfg.get("name") or config.DEFAULTS["name"],
+                system=SYSTEM.format(name=config.NAME,
                                      gender="женском" if config.female(cfg) else "мужском") + memory.store.prompt(),
                 tools=tools.anthropic_tools(),
                 messages=msgs,

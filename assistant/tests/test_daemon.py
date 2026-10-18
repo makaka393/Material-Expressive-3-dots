@@ -125,7 +125,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Ирис.", config.load())
+            await self.d.on_wake("Тори.", config.load())
         play.assert_called_once_with("wake")
         self.assertEqual(started, ["Daemon.listen"])
 
@@ -133,7 +133,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Ирис, следующий трек", config.load())
+            await self.d.on_wake("Тори, следующий трек", config.load())
         play.assert_not_called()
         self.assertEqual(started, ["Daemon.ask"])
 
@@ -147,9 +147,20 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
     async def test_say_preview_overrides_voice(self):
         # «прослушать» в настройках — сразу новым голосом, не дожидаясь записи настроек в файл
         self.d.voice = AsyncMock()
-        await self.d.command({"cmd": "say", "text": "Привет", "voice": "aidar", "pitch": "low", "rate": "fast"})
+        await self.d.command({"cmd": "say", "text": "Привет", "voice": "aidar", "tone": -0.5, "speed": 1.2, "height": 0})
         text, cfg = self.d.voice.say.await_args.args
-        self.assertEqual((text, cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"]), ("Привет", "aidar", "low", "fast"))
+        self.assertEqual((text, cfg["voice"], cfg["voice_tone"], cfg["voice_speed"], cfg["voice_height"]),
+                         ("Привет", "aidar", -0.5, 1.2, 0))
+        self.d.voice.stop.assert_not_called()
+
+    async def test_preview_cuts_previous(self):
+        # ползунок тянут — звучит последнее прослушивание, а не очередь из всех
+        self.d.voice = AsyncMock()
+        self.d.voice.stop = lambda: calls.append("stop")
+        calls = []
+        await self.d.command({"cmd": "say", "text": "Привет", "preview": True, "tone": 1})
+        self.assertEqual(calls, ["stop"])
+        self.d.voice.say.assert_awaited_once()
 
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
@@ -374,3 +385,93 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def speech(spec):
+    """[(«loud»|«quiet», секунд)] → кадры по 30 мс, как в test_stt."""
+    import numpy as np
+    from glass_assistant.stt import FRAME, RATE
+    rng = np.random.default_rng(1)
+    for kind, sec in spec:
+        for _ in range(int(sec * RATE / FRAME)):
+            if kind == "loud":
+                t = np.arange(FRAME) / RATE
+                yield (np.sin(2 * np.pi * 220 * t) * 4000).astype(np.int16)
+            else:
+                yield (rng.normal(0, 60, FRAME)).astype(np.int16)
+
+
+async def stream(spec):
+    for f in speech(spec):
+        yield f
+        await asyncio.sleep(0)
+
+
+class WakeListenTest(unittest.IsolatedAsyncioTestCase):
+    """Имя ловится по короткой паузе (0,7 с), а не после «паузы в конце фразы»; вопрос дослушивается."""
+
+    async def asyncSetUp(self):
+        self.cfg = {**config.DEFAULTS, "wake": True, "pause": 2.0}
+        for p in (patch("glass_assistant.config.load", return_value=self.cfg),
+                  patch("glass_assistant.config.has_key", return_value=False)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.d = Daemon()
+        self.d.local = AsyncMock()
+        self.heard = []                                  # что «распознал» Whisper — по очереди
+        self.lens = []
+
+        async def transcribe(cfg, audio):
+            self.lens.append(len(audio))
+            return self.heard.pop(0) if self.heard else ""
+        self.d.whisper.transcribe = transcribe
+        self.started = []
+        self.d.start = lambda coro: (self.started.append(coro.cr_frame.f_locals.get("text") or coro.__qualname__),
+                                     coro.close())
+        self.events = []
+
+        async def emit(ev, **kw):
+            self.events.append((ev, kw))
+        self.d.emit = emit
+
+    async def test_name_alone_chimes_fast(self):
+        self.heard = ["Тори."]
+        with patch("glass_assistant.daemon.chime.play") as play:
+            await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.5), ("quiet", 1.0), ("quiet", 5)]))
+        play.assert_called_once_with("wake")
+        self.assertEqual(self.started, ["Daemon.listen"])
+        self.assertLess(self.lens[0] / 16000, 1.6)          # кусочек кончился через 0,7 с тишины, не через 2
+
+    async def test_name_with_question_waits_for_rest(self):
+        # «Тори, поставь будильник» … секунда раздумья … «на семь» — одна просьба
+        self.heard = ["Тори, поставь будильник", "на семь"]
+        with patch("glass_assistant.daemon.chime.play"):
+            await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 1.0), ("quiet", 1.2), ("loud", 0.6),
+                                                       ("quiet", 3.0)]))
+        self.assertEqual(self.started, ["поставь будильник на семь"])
+        self.assertIn(("state", {"state": "listening", "wake": True, "key": False}), self.events)
+
+    async def test_name_with_question_no_rest(self):
+        self.heard = ["Тори, какая погода?"]
+        await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 1.0), ("quiet", 3.0)]))
+        self.assertEqual(self.started, ["какая погода?"])
+        self.assertEqual(len(self.lens), 1)                  # продолжения не было — второй раз не распознаём
+
+    async def test_other_speech_ignored_and_keeps_listening(self):
+        self.heard = ["купи хлеба", "Тори, громче"]
+        await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.8), ("quiet", 1.0), ("loud", 0.8),
+                                                   ("quiet", 3.0)]))
+        self.assertEqual(self.started, ["громче"])
+
+    async def test_near_miss_logged(self):
+        self.heard = ["Толи, громче"]
+        with patch("builtins.print") as out:
+            await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.8), ("quiet", 1.0)]))
+        self.assertEqual(self.started, [])
+        self.assertIn("Толи", " ".join(str(c) for c in out.call_args_list))
+
+    async def test_stops_when_wake_off(self):
+        self.cfg["wake"] = False
+        await asyncio.wait_for(self.d.wake_listen(self.cfg, stream([("quiet", 30)])), 5)
+        self.assertEqual(self.lens, [])
+

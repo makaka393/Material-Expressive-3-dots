@@ -3,7 +3,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from glass_assistant import config
-from glass_assistant.tts import Sentences, Voice
+from glass_assistant.tts import Sentences, Voice, prosody, shape, speakable, voice_of
 
 
 class FakeAudio:
@@ -27,29 +27,105 @@ class SynthTest(unittest.TestCase):
         self.v.model = FakeModel()
 
     def test_plain_text_by_default(self):
-        self.v._synth("Привет.", ("xenia", "medium", "medium"))
+        self.v._synth("Привет.", ("xenia", 0.0, 1.0, 0.0))
         kw = self.v.model.calls[0]
         self.assertEqual((kw["text"], kw["speaker"]), ("Привет.", "xenia"))
         self.assertNotIn("ssml_text", kw)
 
-    def test_pitch_and_rate_via_ssml(self):
-        self.v._synth("Ты & я <3", ("aidar", "low", "fast"))
+    def test_speed_and_height_via_ssml_percent(self):
+        # Silero принимает проценты: pitch="+15%", rate="120%" — ползунки плавные, не 3 ступеньки
+        self.v._synth("Ты & я <3", ("aidar", 0.0, 1.2, 1.0))
         kw = self.v.model.calls[0]
-        self.assertEqual(kw["ssml_text"], '<speak><prosody pitch="low" rate="fast">Ты &amp; я &lt;3</prosody></speak>')
+        self.assertEqual(kw["ssml_text"], '<speak><prosody pitch="+15%" rate="120%">Ты &amp; я &lt;3</prosody></speak>')
         self.assertEqual(kw["speaker"], "aidar")
         self.assertNotIn("text", kw)
+
+
+class ProsodyTest(unittest.TestCase):
+    def test_neutral(self):
+        self.assertEqual(prosody(0, 1.0, 0), (0, 100))
+
+    def test_tone_moves_pitch_and_rate_a_little(self):
+        soft, firm = prosody(-1, 1.0, 0), prosody(1, 1.0, 0)
+        self.assertGreater(soft[0], 0)                 # мягкий — чуть выше и неспешнее
+        self.assertLess(soft[1], 100)
+        self.assertLess(firm[0], 0)                    # твёрдый — ниже и быстрее
+        self.assertGreater(firm[1], 100)
+        self.assertLessEqual(abs(soft[0]), 5)
+
+    def test_voice_of_clamps_and_survives_old_values(self):
+        cfg = {**config.DEFAULTS, "voice": "baya", "voice_tone": 7, "voice_speed": "fast", "voice_height": -0.5}
+        self.assertEqual(voice_of(cfg), ("baya", 1.0, 1.0, -0.5))
+
+
+class ShapeTest(unittest.TestCase):
+    """Ползунок «тон»: мягче — меньше верха, твёрже — больше присутствия и ровнее громкость."""
+
+    def setUp(self):
+        import numpy as np
+        rng = np.random.default_rng(3)
+        t = np.arange(48000) / 48000
+        env = 0.2 + 0.8 * (np.sin(2 * np.pi * 3 * t) > 0)          # слоги: громко-тихо
+        self.np = np
+        self.x = ((np.sin(2 * np.pi * 180 * t) + 0.3 * rng.standard_normal(len(t))) * env * 0.3).astype("float32")
+
+    def band(self, y, lo, hi):
+        f = self.np.fft.rfftfreq(len(y), 1 / 48000)
+        p = self.np.abs(self.np.fft.rfft(y)) ** 2
+        return p[(f >= lo) & (f < hi)].sum() / p.sum()
+
+    def test_neutral_untouched(self):
+        self.assertIs(shape(self.x, 0.0), self.x)
+
+    def test_soft_darker(self):
+        self.assertLess(self.band(shape(self.x, -1), 4000, 12000), self.band(self.x, 4000, 12000) * 0.6)
+
+    def test_firm_brighter_and_denser(self):
+        np = self.np
+        y = shape(self.x, 1)
+        self.assertGreater(self.band(y, 2000, 4000), self.band(self.x, 2000, 4000) * 1.4)
+        def spread(a):                                   # громкие слоги к тихим, по окнам 50 мс
+            w = np.sqrt(np.mean(a[:len(a) // 2400 * 2400].astype(float).reshape(-1, 2400) ** 2, axis=1))
+            return np.percentile(w, 90) / np.percentile(w, 10)
+        self.assertLess(spread(y), spread(self.x) * 0.8)
+
+    def test_level_kept(self):
+        np = self.np
+        rms = lambda a: float(np.sqrt(np.mean(a.astype(float) ** 2)))
+        for t in (-1, -0.5, 0.5, 1):
+            y = shape(self.x, t)
+            self.assertEqual(y.dtype, np.float32)
+            self.assertAlmostEqual(rms(y) / rms(self.x), 1.0, delta=0.12, msg=t)
+            self.assertLessEqual(np.abs(y).max(), 0.971)
+
+
+class SpeakableTest(unittest.TestCase):
+    """Silero молча выбрасывает латиницу, а фраза из одной латиницы не звучала вовсе."""
+
+    def test_no_latin_left(self):
+        for t in ("Hi! This is how I will answer you.", "Linkin Park — Numb", "Включаю Spotify.", "RTX греется"):
+            self.assertNotRegex(speakable(t), "[A-Za-z]", t)
+
+    def test_known_words(self):
+        self.assertEqual(speakable("Включаю Spotify."), "Включаю спотифай.")
+        self.assertIn("клод", speakable("Claude недоступен"))
+        self.assertIn("ар-ти-экс", speakable("RTX 4070"))
+
+    def test_name_stress(self):
+        self.assertEqual(speakable("Привет! Я Тори."), "Привет! Я Т+ори.")
 
 
 class SayTest(unittest.IsolatedAsyncioTestCase):
     async def test_say_queues_voice_settings(self):
         v = Voice()
         v.ready = AsyncMock()
-        cfg = {**config.DEFAULTS, "voice": "baya", "voice_pitch": "high", "voice_rate": "slow"}
+        cfg = {**config.DEFAULTS, "voice": "baya", "voice_tone": -0.5, "voice_speed": 1.1, "voice_height": 0.25}
         await v.say("Привет", cfg)
-        self.assertEqual(v.texts.get_nowait(), (0, "Привет", ("baya", "high", "slow")))
+        self.assertEqual(v.texts.get_nowait(), (0, "Привет", ("baya", -0.5, 1.1, 0.25)))
 
     def test_defaults(self):
-        self.assertEqual((config.DEFAULTS["voice_pitch"], config.DEFAULTS["voice_rate"]), ("medium", "medium"))
+        self.assertEqual((config.DEFAULTS["voice_tone"], config.DEFAULTS["voice_speed"], config.DEFAULTS["voice_height"]),
+                         (0.0, 1.0, 0.0))
 
 
 class FakeStdin:

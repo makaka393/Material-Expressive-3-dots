@@ -2,6 +2,7 @@
 (whisper.cpp на видеокарте, whisper-server — грузится по требованию и выгружается после простоя).
 """
 import asyncio
+import collections
 import io
 import os
 import time
@@ -43,17 +44,27 @@ class Mic:
 
 
 class Vad:
-    """Речь или тишина по громкости кадра относительно шума в комнате (порог подстраивается сам)."""
+    """Речь или тишина по громкости кадра относительно шума в комнате (порог подстраивается сам).
+
+    Шум считается по тихим кадрам, а если тихих нет (вентилятор, музыка с самого начала) — по 15-му
+    перцентилю громкости за 3 с: в речи между словами есть паузы, а ровный шум их не даёт. Раньше порог
+    в таком шуме оставался прежним, всё считалось речью, и фраза не кончалась."""
 
     def __init__(self):
         self.floor = 300.0
+        self.recent = collections.deque(maxlen=100)
 
     def level(self, frame) -> float:
         return float(np.sqrt(np.mean(frame.astype(np.float32) ** 2)))
 
     def speech(self, rms: float) -> bool:
+        self.recent.append(rms)
+        if len(self.recent) >= 30 and len(self.recent) % 5 == 0:
+            low = float(np.percentile(self.recent, 15))
+            if low > self.floor * 1.5:                # шум вырос: тихих кадров по старому порогу не бывает
+                self.floor = 0.8 * self.floor + 0.2 * low
         loud = rms > max(self.floor * 3.0, 450.0)
-        if not loud:                                  # шум считаем только по тихим кадрам
+        if not loud:                                  # шум считаем по тихим кадрам
             self.floor = 0.97 * self.floor + 0.03 * max(rms, 50.0)
         return loud
 

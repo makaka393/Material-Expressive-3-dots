@@ -54,9 +54,9 @@ class Reply:
 
 
 def system(cfg) -> str:
-    """Имя — одной строкой в конце: «Ты — Ирис…» в начале промпта делало модель болтливой, она отвечала словами
+    """Имя — одной строкой в конце: «Ты — <имя>…» в начале промпта делало модель болтливой, она отвечала словами
     вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с). Имя и память меняются редко — кэш не сбивается."""
-    return SYSTEM + f"\nТебя зовут {cfg.get('name') or config.DEFAULTS['name']}." + memory.store.prompt()
+    return SYSTEM + f"\nТебя зовут {config.NAME}." + memory.store.prompt()
 
 
 class LocalServer:
@@ -184,6 +184,13 @@ class LocalBrain:
         cfg = config.load()
         if self.history and time.monotonic() - self.last > HISTORY_IDLE:
             self.history = []
+        about = intents.about(text)
+        if about:                                # «как тебя зовут» — без модели (intents.about)
+            await on_delta(about)
+            self.history = (self.history + [[{"role": "user", "content": self.stamp(text)},
+                                             {"role": "assistant", "content": about}]])[-cfg["local_history_turns"]:]
+            self.last = time.monotonic()
+            return Reply(about, [])
         fast = intents.match(text)
         if fast:                                 # частая команда — без модели (и даже без её загрузки)
             return await self._fast(text, *fast, cfg, on_action)

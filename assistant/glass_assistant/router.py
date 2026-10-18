@@ -50,21 +50,34 @@ def sound(word: str) -> str:
 
 
 def wake(text: str, words) -> str | None:
-    """Если фраза начинается со слова-активатора — остаток ("" — только оно), иначе None. Длинные слова
-    («обсидиан») — по началу: «обсидианчик»; короткие («обс», «обси») — только целиком: иначе «обсудим»."""
+    """Если во фразе есть слово-активатор — что к нему сказано ("" — только имя), иначе None.
+
+    Имя ищется по всей фразе: «так, Тори, громче», обрывок чужой речи перед ним, «- Тори, …» (Whisper
+    ставит тире). Сказано после имени — это и есть вопрос; имя в конце («Какая погода, Тори?») — вопрос
+    перед ним, если он в том же предложении. Длинные слова («обсидиан») — по началу: «обсидианчик»;
+    короткие («обс», «тори») — только целиком: иначе «обсудим», «истории»."""
     keys = [sound(w) for w in words]
     toks = text.split()
-    for i in range(min(3, len(toks))):
+    for i in range(len(toks)):
         cands = [(sound(toks[i]), 1)]
-        if sound(toks[i]) in ("а", "у") and i + 1 < len(toks):
-            cands.append((sound(toks[i]) + sound(toks[i + 1]), 2))       # «а псих» — это «обсик»
+        if cands[0][0] in ("а", "у") and i + 1 < len(toks):
+            cands.append((cands[0][0] + sound(toks[i + 1]), 2))       # «а псих» — это «обсик»
         for k, n in cands:
-            if any(k == w or len(w) >= 6 and k.startswith(w[:6]) for w in keys):
+            if k and any(k == w or len(w) >= 6 and k.startswith(w[:6]) for w in keys):
                 tail = text.split(None, i + n)
-                return tail[i + n].lstrip(" ,.!?" + QUOTES).rstrip(" " + QUOTES) if len(tail) > i + n else ""
-        if sound(toks[i]) not in {sound(f) for f in FILLERS}:
-            break
+                rest = tail[i + n].lstrip(" ,.!?-—–…" + QUOTES).rstrip(" " + QUOTES) if len(tail) > i + n else ""
+                return rest or _before(toks[:i])
     return None
+
+
+def _before(toks) -> str:
+    """Вопрос перед именем — из того же предложения, без «эй», «слушай»; «… Тори.» после точки — только имя."""
+    if not toks or re.search(r"[.!?…]$", toks[-1]):
+        return ""
+    words = re.split(r"[.!?…]\s+", " ".join(toks))[-1].lstrip(" -—–" + QUOTES).split()
+    while words and sound(words[0]) in {sound(f) for f in FILLERS}:
+        words = words[1:]
+    return " ".join(words).rstrip(" ,")
 
 
 def route(text: str, cfg: dict, to: str | None = None, last: str | None = None) -> Route:

@@ -220,19 +220,25 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
             await self.ask("как меня зовут")
         self.assertIn("- Пользователя зовут Рома", self.llama.bodies[0]["messages"][0]["content"])
 
-    async def test_name_and_gender_in_system_prompt(self):
-        self.llama.replies = [[text("а")], [text("б")]]
-        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Аврора", "voice": "baya"}):
-            await self.ask("кто ты")
-        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Юна", "voice": "aidar"}):
-            await self.ask("кто ты")
-        first, second = (b["messages"][0]["content"] for b in self.llama.bodies)
-        # только имя и только в конце: «Ты — Ирис… о себе в женском роде» в начале делало модель болтливой —
+    async def test_name_in_system_prompt(self):
+        # имя одно — «Тори»; старое «name» в assistant.json («Ирис») не действует
+        self.llama.replies = [[text("а")]]
+        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Ирис", "voice": "baya"}):
+            await self.ask("что ты умеешь")
+        first = self.llama.bodies[0]["messages"][0]["content"]
+        # только имя и только в конце: «Ты — <имя>… о себе в женском роде» в начале делало модель болтливой —
         # она отвечала словами вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с)
-        self.assertIn("Тебя зовут Аврора.", first)
-        self.assertIn("Тебя зовут Юна.", second)
+        self.assertIn("Тебя зовут Тори.", first)
+        self.assertNotIn("Ирис", first)
         self.assertNotIn("роде", first)
         self.assertTrue(first.startswith("Ты — голосовой ассистент"))
+
+    async def test_name_question_without_model(self):
+        r = await self.ask("Как тебя зовут?")
+        self.assertEqual(r.text, "Меня зовут Тори.")
+        self.assertEqual(self.llama.bodies, [])
+        r = await self.ask("кто ты такая")
+        self.assertIn("Тори", r.text)
 
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)

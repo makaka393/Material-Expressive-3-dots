@@ -15,6 +15,77 @@ RATE = 48000
 LINGER = 0.3          # с — ждём следующую фразу, прежде чем закрыть проигрыватель
 
 
+def _num(v, lo, hi, default):
+    try:
+        return max(lo, min(hi, float(v)))
+    except (TypeError, ValueError):     # старые настройки: "high", "fast"
+        return default
+
+
+def voice_of(cfg):
+    """(голос, тон, скорость, высота) из настроек — ползунки «Ассистента»."""
+    return (cfg.get("voice") or "xenia", _num(cfg.get("voice_tone"), -1, 1, 0.0),
+            _num(cfg.get("voice_speed"), 0.75, 1.35, 1.0), _num(cfg.get("voice_height"), -1, 1, 0.0))
+
+
+def prosody(tone, speed, height):
+    """Ползунки → высота (±%) и скорость (%) для Silero. Тон чуть двигает и их: мягкий голос — немного выше
+    и неспешнее, твёрдый — ниже и быстрее; остальное — тембр (shape)."""
+    pitch = (1 + 0.15 * height) * (1 - 0.04 * tone)
+    rate = speed * (1 + 0.05 * tone)
+    return round((pitch - 1) * 100), round(rate * 100)
+
+
+def _biquad(kind, f0, gain_db, q=0.707):
+    """Коэффициенты фильтра (RBJ Audio EQ Cookbook): полка снизу/сверху или колокол."""
+    import numpy as np
+    a_ = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * f0 / RATE
+    cw, sw = np.cos(w0), np.sin(w0)
+    if kind == "peak":
+        al = sw / (2 * q)
+        b = [1 + al * a_, -2 * cw, 1 - al * a_]
+        a = [1 + al / a_, -2 * cw, 1 - al / a_]
+    else:
+        sq = 2 * np.sqrt(a_) * sw / np.sqrt(2)          # наклон полки S = 1
+        if kind == "low":
+            b = [a_ * ((a_ + 1) - (a_ - 1) * cw + sq), 2 * a_ * ((a_ - 1) - (a_ + 1) * cw), a_ * ((a_ + 1) - (a_ - 1) * cw - sq)]
+            a = [(a_ + 1) + (a_ - 1) * cw + sq, -2 * ((a_ - 1) + (a_ + 1) * cw), (a_ + 1) + (a_ - 1) * cw - sq]
+        else:
+            b = [a_ * ((a_ + 1) + (a_ - 1) * cw + sq), -2 * a_ * ((a_ - 1) + (a_ + 1) * cw), a_ * ((a_ + 1) + (a_ - 1) * cw - sq)]
+            a = [(a_ + 1) - (a_ - 1) * cw + sq, 2 * ((a_ - 1) - (a_ + 1) * cw), (a_ + 1) - (a_ - 1) * cw - sq]
+    return np.array(b) / a[0], np.array(a) / a[0]
+
+
+def shape(x, tone):
+    """Тембр по ползунку «тон». Мягче — тише верх (теплее, без шипящих) и чуть полнее низ; твёрже — больше
+    присутствия (около 3 кГц), суше низ и сжатая динамика: тихие слоги ближе к громким, голос плотнее и
+    увереннее. Громкость (RMS) прежняя — меняется характер, а не уровень."""
+    import numpy as np
+    from scipy.signal import lfilter
+    t = _num(tone, -1, 1, 0.0)
+    if abs(t) < 0.05 or len(x) < 1024:
+        return x
+    x = x.astype(np.float64)
+    level = np.sqrt(np.mean(x * x)) or 1e-9
+    y = lfilter(*_biquad("low", 220, -2.5 * t), x)
+    if t < 0:
+        y = lfilter(*_biquad("high", 3000, 6.0 * t), y)
+    else:
+        y = lfilter(*_biquad("peak", 2800, 4.5 * t, q=0.9), y)
+        k = np.exp(-1 / (0.012 * RATE))                     # огибающая громкости, ~12 мс
+        env = np.sqrt(np.maximum(lfilter([1 - k], [1, -k], y * y), 1e-12))
+        thr = 0.3 * env.max()
+        ratio = 1 + 2 * t                                   # до 3:1
+        gain = np.where(env > thr, (thr * (env / thr) ** (1 / ratio)) / env, 1.0)
+        y = y * lfilter([1 - k], [1, -k], gain)
+    y *= level / (np.sqrt(np.mean(y * y)) or 1e-9)
+    peak = np.abs(y).max()
+    if peak > 0.97:
+        y *= 0.97 / peak
+    return y.astype(np.float32)
+
+
 class Voice:
     def __init__(self, spawn=None):
         self.model = None
@@ -39,7 +110,7 @@ class Voice:
         if self.model is None:
             self.model = await asyncio.to_thread(self._load, cfg["tts_model"])
             try:                         # первый синтез после загрузки в разы медленнее — сделать его сразу
-                await asyncio.to_thread(self._synth, "Привет.", (cfg["voice"], "medium", "medium"))
+                await asyncio.to_thread(self._synth, "Привет.", voice_of(cfg))
             except Exception as e:
                 print("tts: разогрев:", e, flush=True)
         if self.tasks is None:
@@ -51,18 +122,19 @@ class Voice:
             "--media-role", "Assistant", "-", stdin=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
 
     def _synth(self, text, voice):
-        speaker, pitch, rate = voice
-        if (pitch, rate) == ("medium", "medium"):
+        speaker, tone, speed, height = voice
+        pitch, rate = prosody(tone, speed, height)
+        if (pitch, rate) == (0, 100):
             src = {"text": text}
-        else:                            # тон и темп — через SSML: тот же голос ниже/выше, медленнее/быстрее
+        else:                            # высота и скорость — через SSML, в процентах: тот же голос, без артефактов
             safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            src = {"ssml_text": f'<speak><prosody pitch="{pitch}" rate="{rate}">{safe}</prosody></speak>'}
+            src = {"ssml_text": f'<speak><prosody pitch="{pitch:+d}%" rate="{rate}%">{safe}</prosody></speak>'}
         try:
             audio = self.model.apply_tts(**src, speaker=speaker, sample_rate=RATE, put_accent=True, put_yo=True,
                                          put_stress_homo=True, put_yo_homo=True)
         except TypeError:                # у разных версий моделей свой набор параметров
             audio = self.model.apply_tts(**src, speaker=speaker, sample_rate=RATE)
-        return audio.numpy().astype("float32").tobytes()
+        return shape(audio.numpy().astype("float32"), tone).tobytes()
 
     async def say(self, text: str, cfg):
         """В очередь на озвучку (одно предложение или фраза)."""
@@ -71,7 +143,7 @@ class Voice:
             return
         await self.ready(cfg)
         self.idle.clear()
-        await self.texts.put((self.gen, text, (cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"])))
+        await self.texts.put((self.gen, text, voice_of(cfg)))
 
     def _more(self):
         return not self.texts.empty() or self.synthesizing or not self.pcms.empty()
@@ -85,7 +157,7 @@ class Voice:
                 try:
                     pcm = await asyncio.to_thread(self._synth, text, voice)
                 except Exception as e:   # кривой текст не должен ронять озвучку
-                    print("tts:", e, flush=True)
+                    print("tts:", repr(e), repr(text[:80]), flush=True)
             self.synthesizing = False
             if pcm is not None and gen == self.gen:
                 await self.pcms.put((gen, pcm))
@@ -175,11 +247,58 @@ class Sentences:
         return [head] if head else []
 
 
+# Silero говорит только по-русски: латиницу он молча выбрасывает, а фраза из одной латиницы («Linkin Park —
+# Numb», превью «Hi! This is…») падала целиком, без звука. Частые слова — как их говорят, остальное — по буквам
+LATIN_WORDS = {
+    "spotify": "спотифай", "youtube": "ютуб", "google": "гугл", "claude": "клод", "opus": "опус", "sonnet": "сонет",
+    "haiku": "хайку", "gemma": "гемма", "wi-fi": "вай-фай", "wifi": "вайфай", "bluetooth": "блютус",
+    "telegram": "телеграм", "discord": "дискорд", "steam": "стим", "github": "гитхаб", "linux": "линукс",
+    "arch": "арч", "hyprland": "хайпрленд", "firefox": "файрфокс", "chrome": "хром", "zen": "зен",
+    "windows": "виндоус", "iphone": "айфон", "apple": "эпл", "android": "андроид", "glass": "гласс",
+    "ok": "окей", "okay": "окей", "hi": "хай", "hello": "хэллоу", "the": "зе", "and": "энд", "of": "оф",
+    "you": "ю", "my": "май", "love": "лав", "me": "ми", "is": "из", "it": "ит", "in": "ин", "on": "он",
+    "night": "найт", "day": "дэй", "life": "лайф", "time": "тайм", "world": "ворлд", "heart": "харт",
+    "tori": "т+ори",
+}
+LETTERS = {"a": "эй", "b": "би", "c": "си", "d": "ди", "e": "и", "f": "эф", "g": "джи", "h": "эйч", "i": "ай",
+           "j": "джей", "k": "кей", "l": "эл", "m": "эм", "n": "эн", "o": "оу", "p": "пи", "q": "кью", "r": "ар",
+           "s": "эс", "t": "ти", "u": "ю", "v": "ви", "w": "дабл-ю", "x": "экс", "y": "уай", "z": "зед"}
+SOUNDS = [("sch", "ш"), ("tch", "ч"), ("sh", "ш"), ("ch", "ч"), ("th", "т"), ("ph", "ф"), ("ck", "к"), ("qu", "кв"),
+          ("oo", "у"), ("ee", "и"), ("ea", "и"), ("ou", "ау"), ("ow", "оу"), ("ay", "эй"), ("ai", "эй"), ("ey", "эй"),
+          ("kh", "х"), ("zh", "ж"), ("ts", "ц"), ("ya", "я"), ("yu", "ю"), ("yo", "ё"), ("ye", "е"), ("x", "кс"),
+          ("j", "дж"), ("w", "в"), ("a", "а"), ("b", "б"), ("c", "к"), ("d", "д"), ("e", "е"), ("f", "ф"), ("g", "г"),
+          ("h", "х"), ("i", "и"), ("k", "к"), ("l", "л"), ("m", "м"), ("n", "н"), ("o", "о"), ("p", "п"), ("q", "к"),
+          ("r", "р"), ("s", "с"), ("t", "т"), ("u", "у"), ("v", "в"), ("y", "и"), ("z", "з")]
+LATIN_RX = re.compile(r"[A-Za-z][A-Za-z'-]*")
+
+
+def _latin(m) -> str:
+    w = m.group(0)
+    low = w.lower().replace("'", "")
+    if low in LATIN_WORDS:
+        return LATIN_WORDS[low]
+    if w.isupper() and len(w) <= 4:                      # GPU, USB, RTX — по буквам
+        return "-".join(LETTERS[c] for c in low if c in LETTERS)
+    low = re.sub(r"(?<=[a-z])e$", "", low) or low        # немое e на конце: «love», «fade»
+    out, i = "", 0
+    while i < len(low):
+        for lat, ru in SOUNDS:
+            if low.startswith(lat, i):
+                out, i = out + ru, i + len(lat)
+                break
+        else:
+            out, i = out + low[i], i + 1
+    return re.sub(r"(?<=[бвгджзклмнпрстфхцчшщ])и(?=[аоуэ])", "й", out)
+
+
 def speakable(text: str) -> str:
-    """Убрать то, что вслух не читают (разметку, ссылки, эмодзи), а числа — словами: Silero цифры глотает."""
+    """Убрать то, что вслух не читают (разметку, ссылки, эмодзи), латиницу — русскими буквами, а числа —
+    словами: Silero цифры глотает. Имени — ударение: «Т+ори», а не «Тор+и»."""
     t = re.sub(r"https?://\S+", "", text)
     t = re.sub(r"`{1,3}[^`]*`{1,3}", "", t)
     t = re.sub(r"[*_#>|~^]+", "", t)
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿]", "", t)
     t = t.replace("—", ", ").replace("–", ", ")
+    t = LATIN_RX.sub(_latin, t)
+    t = re.sub(r"(?<![\w+])Тори(?!\w)", "Т+ори", t)
     return spoken(" ".join(t.split()).strip())
