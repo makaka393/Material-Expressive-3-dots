@@ -1,8 +1,12 @@
 """Служба ассистента: unix-сокет $XDG_RUNTIME_DIR/glass-assistant.sock, JSON по строке.
 
+Куда идёт вопрос — решает router.route(): по умолчанию локальная модель (local.py), «морковь, …» в
+начале фразы — Claude (claude.py).
+
 Команды (клиент → служба):
-  {"cmd": "ask", "text": "...", "speak": false}   вопрос текстом (лаунчер)
-  {"cmd": "listen"}                              выслушать вопрос голосом и ответить голосом; второй раз — стоп
+  {"cmd": "ask", "text": "...", "speak": false, "to": "claude"}   вопрос текстом (лаунчер); to — сразу в Claude
+  {"cmd": "listen", "to": "claude"}              выслушать вопрос голосом и ответить голосом; второй раз — стоп
+  {"cmd": "warm"} | {"cmd": "unload"}            загрузить локальную модель заранее | выгрузить (игра)
   {"cmd": "stop"}                                прервать: слушание, ответ, озвучку
   {"cmd": "say", "text": "..."}                  просто произнести
   {"cmd": "reset"}                               забыть разговор
@@ -11,8 +15,10 @@
   {"ev": "state", "state": "idle|listening|transcribing|thinking|speaking", "wake": bool}
   {"ev": "level", "v": 0…1}       громкость микрофона, пока слушает
   {"ev": "heard", "text": "..."}  что распознано
+  {"ev": "route", "brain": "local|claude", "text": "..."}   кто отвечает и на что (без «морковь»)
   {"ev": "delta", "text": "..."}  кусочек ответа
-  {"ev": "done", "text": "...", "backend": "claude|local"}
+  {"ev": "action", "name": "...", "args": {...}, "ok": true, "show": "Следующий трек"}   выполнено действие
+  {"ev": "done", "text": "...", "backend": "claude|local", "actions": [...]}
   {"ev": "error", "text": "..."}
 """
 import asyncio
@@ -21,16 +27,23 @@ import os
 import signal
 import time
 
+
+import httpx2
+
 from . import config
-from .llm import Brain
-from .router import strip_word
+from .claude import UNAVAILABLE, ClaudeBrain
+from .local import LocalBrain, LocalServer
+from .router import route, strip_word
 from .stt import Mic, Vad, Whisper, record_utterance, FRAME, RATE
 from .tts import Sentences, Voice
 
 
 class Daemon:
     def __init__(self):
-        self.brain = Brain()
+        self.local = LocalServer()
+        self.local_brain = LocalBrain(self.local)
+        self.claude_brain = ClaudeBrain()
+        self.last_local = None           # (вопрос, время): «морковь» без вопроса переспросит его у Claude
         self.whisper = Whisper()
         self.voice = Voice()
         self.clients = set()
@@ -73,9 +86,11 @@ class Daemon:
     def busy(self):
         return self.job is not None and not self.job.done()
 
-    async def listen(self, cfg):
+    async def listen(self, cfg, to=None):
         await self.set_state("listening")
         warm = asyncio.create_task(self.whisper.ensure(cfg))      # Whisper грузится, пока ты говоришь
+        if to != "claude" and cfg["backend"] != "claude":
+            asyncio.create_task(self.local.warm(cfg))             # и локальная модель
         audio = await record_utterance(cfg["mic"], lambda v: self.emit("level", v=round(v, 3)))
         if audio is None:
             warm.cancel()
@@ -85,35 +100,78 @@ class Daemon:
         text = await self.whisper.transcribe(cfg, audio)
         await self.emit("heard", text=text)
         if text:
-            await self.ask(text, voice=True)
+            await self.ask(text, voice=True, to=to)
 
-    async def ask(self, text, voice=False, speak=None):
+    async def ask(self, text, voice=False, speak=None, to=None):
         cfg = config.load()
         speak = (cfg["speak_voice"] if voice else cfg["speak_typed"]) if speak is None else speak
+        last = self.last_local[0] if self.last_local and time.monotonic() - self.last_local[1] < 120 else None
+        r = route(text, cfg, to=to, last=last)
+        if r.brain == "claude" and not r.text:
+            if voice:
+                await self.listen(cfg, to="claude")                # «морковь» — и слушаем вопрос
+            else:
+                await self.emit("error", text="Что спросить у Claude?")
+            return
+        await self.emit("route", brain=r.brain, text=r.text)
         await self.set_state("thinking")
         cut = Sentences()
+        said, actions = [], []
         spoke = False
         if speak:
             asyncio.create_task(self.voice.ready(cfg))             # Silero грузится, пока думает модель
 
-        async def delta(chunk):
+        async def speak_text(s):
             nonlocal spoke
+            if not spoke:
+                spoke = True
+                await self.set_state("speaking")
+            await self.voice.say(s, cfg)
+
+        async def delta(chunk):
+            said.append(chunk)
             await self.emit("delta", text=chunk)
             if speak:
                 for s in cut.feed(chunk):
-                    if not spoke:
-                        spoke = True
-                        await self.set_state("speaking")
-                    await self.voice.say(s, cfg)
+                    await speak_text(s)
 
-        full, backend = await self.brain.answer(text, voice=voice or speak, on_delta=delta)
+        async def action(a):
+            actions.append(a)
+            await self.emit("action", name=a["name"], args=a["args"], ok=a["ok"], show=a["show"])
+
+        v = voice or speak
+        backend = r.brain
+        if r.brain == "claude":
+            try:
+                await self.claude_brain.answer(r.text, v, delta, action)
+            except UNAVAILABLE as e:
+                print(f"claude недоступен ({type(e).__name__}), отвечает локальная модель", flush=True)
+                await delta("Claude недоступен — отвечаю сама: ")
+                await self.local_brain.answer(r.text, v, delta, action)
+                backend = "local"
+        else:
+            try:
+                await self.local_brain.answer(r.text, v, delta, action)
+            except (RuntimeError, httpx2.HTTPError) as e:
+                if not config.has_key():
+                    raise
+                print(f"локальная модель: {e!r}, отвечает Claude", flush=True)
+                await delta("Локальная модель не запустилась — спросил Claude: ")
+                await self.claude_brain.answer(r.text, v, delta, action)
+                backend = "claude"
+            self.last_local = (r.text, time.monotonic())
         if speak:
             for s in cut.flush():
-                if not spoke:
-                    spoke = True
-                    await self.set_state("speaking")
-                await self.voice.say(s, cfg)
-        await self.emit("done", text=full, backend=backend)
+                await speak_text(s)
+            if not "".join(said).strip():
+                # ответ — только действия: смену трека и так слышно, а ошибку надо сказать
+                for a in actions:
+                    s = a["say"] or (None if a["ok"] else a["show"])
+                    if s:
+                        await speak_text(s)
+        text = "".join(said).strip() or " · ".join(a["show"] for a in actions if a["show"])
+        await self.emit("done", text=text, backend=backend,
+                        actions=[{k: a[k] for k in ("name", "args", "ok", "show")} for a in actions])
         if speak:
             await self.voice.idle.wait()
 
@@ -160,8 +218,10 @@ class Daemon:
         if rest is None:
             return
         await self.emit("heard", text=text)
+        if cfg["backend"] != "claude":
+            asyncio.create_task(self.local.warm(cfg))
         if rest:
-            self.start(self.ask(rest, voice=True))                # «Гласс, какая погода?» — сразу вопрос
+            self.start(self.ask(rest, voice=True))                # «Обсидиан, какая погода?» — сразу вопрос
         else:
             self.start(self.listen(cfg))                          # «Гласс!» — слушаем вопрос
 
@@ -172,7 +232,7 @@ class Daemon:
             cfg = config.load()
             try:
                 await self.whisper.reap(cfg, keep=cfg["wake"])
-                await self.brain.local.reap(cfg)
+                await self.local.reap(cfg)
             except Exception as e:
                 print("reaper:", repr(e), flush=True)
 
@@ -198,12 +258,16 @@ class Daemon:
         cfg = config.load()
         if cmd == "ask" and msg.get("text", "").strip():
             self.voice.stop()
-            self.start(self.ask(msg["text"].strip(), voice=False, speak=msg.get("speak")))
+            self.start(self.ask(msg["text"].strip(), voice=False, speak=msg.get("speak"), to=msg.get("to")))
         elif cmd == "listen":
             if self.busy() or not self.voice.idle.is_set():
                 await self.command({"cmd": "stop"})
             else:
-                self.start(self.listen(cfg))
+                self.start(self.listen(cfg, to=msg.get("to")))
+        elif cmd == "warm":
+            asyncio.create_task(self.local.warm(cfg))
+        elif cmd == "unload":
+            await self.local.unload()
         elif cmd == "stop":
             self.voice.stop()
             if self.busy():
@@ -212,7 +276,8 @@ class Daemon:
         elif cmd == "say" and msg.get("text"):
             await self.voice.say(msg["text"], cfg)
         elif cmd == "reset":
-            self.brain.reset()
+            self.local_brain.reset()
+            self.claude_brain.reset()
         elif cmd == "status":
             await self.emit("state", state=self.state, wake=bool(cfg["wake"]), key=config.has_key())
 
@@ -236,7 +301,7 @@ class Daemon:
             t.cancel()
         self.voice.stop()
         await self.whisper.stop()
-        await self.brain.local.stop()
+        await self.local.stop()
         try:
             path.unlink()
         except FileNotFoundError:

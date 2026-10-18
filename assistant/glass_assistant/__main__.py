@@ -1,9 +1,11 @@
 """glass-assistant: служба (serve) и короткие команды к ней.
 
   python -m glass_assistant serve            запустить службу (обычно — systemd --user)
-  python -m glass_assistant ask "вопрос"     спросить текстом и напечатать ответ
+  python -m glass_assistant ask "вопрос"     спросить текстом и напечатать ответ («морковь, …» — у Claude)
+  python -m glass_assistant claude "вопрос"  спросить сразу у Claude
   python -m glass_assistant listen           выслушать голосом (второй раз — стоп)
   python -m glass_assistant say "текст"      произнести
+  python -m glass_assistant warm | unload    загрузить локальную модель заранее | выгрузить
   python -m glass_assistant stop | reset | status
 """
 import asyncio
@@ -25,6 +27,8 @@ async def client(cmd: dict, wait: bool):
         ev = json.loads(line)
         if ev["ev"] == "state" and ev["state"] != "idle":
             asked = True
+        elif ev["ev"] == "action":
+            print(f"⚙ {ev['show']}", flush=True)
         elif ev["ev"] == "delta":
             print(ev["text"], end="", flush=True)
         elif ev["ev"] == "heard":
@@ -48,7 +52,10 @@ def main():
         asyncio.run(Daemon().serve())
         return
     cmds = {"ask": ({"cmd": "ask", "text": rest, "speak": False}, True),
+            "claude": ({"cmd": "ask", "text": rest, "speak": False, "to": "claude"}, True),
             "listen": ({"cmd": "listen"}, True),
+            "warm": ({"cmd": "warm"}, False),
+            "unload": ({"cmd": "unload"}, False),
             "say": ({"cmd": "say", "text": rest}, False),
             "stop": ({"cmd": "stop"}, False),
             "reset": ({"cmd": "reset"}, False),

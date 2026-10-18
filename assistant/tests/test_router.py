@@ -1,5 +1,6 @@
 import unittest
 
+from glass_assistant import config
 from glass_assistant.router import Route, route, strip_word
 
 CFG = {"backend": "auto", "claude_words": ["морковка"]}
@@ -34,6 +35,22 @@ class RouteTest(unittest.TestCase):
 
     def test_backend_local_ignores_word(self):
         self.assertEqual(route("морковка, привет", {**CFG, "backend": "local"}), Route("local", "морковка, привет", False))
+
+
+class DefaultWordsTest(unittest.TestCase):
+    """Слова по умолчанию: «обсидиан» — активатор, «морковь» — в Claude (любая форма)."""
+
+    def test_morkov_forms(self):
+        for t in ("морковь, почему небо синее", "Морковка, почему небо синее", "морковку почему небо синее"):
+            self.assertEqual(route(t, config.DEFAULTS), Route("claude", "почему небо синее", False), t)
+
+    def test_obsidian_then_morkov(self):
+        rest = strip_word("Обсидиан, морковь, почему небо синее?", config.DEFAULTS["wake_words"])
+        self.assertEqual(route(rest, config.DEFAULTS), Route("claude", "почему небо синее?", False))
+
+    def test_obsidian_plain_is_local(self):
+        rest = strip_word("Обсидиан, выкрути яркость на максимум", config.DEFAULTS["wake_words"])
+        self.assertEqual(route(rest, config.DEFAULTS), Route("local", "выкрути яркость на максимум", False))
 
 
 class StripWordTest(unittest.TestCase):

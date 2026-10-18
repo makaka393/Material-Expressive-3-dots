@@ -15,14 +15,14 @@ SOCKET = RUNTIME / "glass-assistant.sock"
 
 DEFAULTS = {
     "backend": "auto",           # auto — локальная модель, «морковка» — Claude; claude — всегда Claude; local — никогда
-    "claude_words": ["морковка"],  # слово в начале фразы отправляет её в Claude
+    "claude_words": ["морковь"],   # слово в начале фразы отправляет её в Claude (узнаётся по «морков…»)
     "model": "claude-opus-5-5",
     "effort": "low",             # low | medium | high — глубина размышлений Claude (ниже — быстрее)
     "speak_voice": True,         # озвучивать ответы на голосовые вопросы
     "speak_typed": False,        # и на вопросы из лаунчера
     "voice": "xenia",            # голос Silero: aidar, baya, kseniya, xenia, eugene
     "wake": False,               # слушать слово-активатор
-    "wake_words": ["гласс", "ассистент", "джарвис"],
+    "wake_words": ["обсидиан"],
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново
