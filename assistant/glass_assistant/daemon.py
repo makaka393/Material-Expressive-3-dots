@@ -24,6 +24,7 @@
 import asyncio
 import json
 import os
+import re
 import signal
 import time
 
@@ -36,6 +37,20 @@ from .local import LocalBrain, LocalServer
 from .router import route, wake
 from .stt import Mic, Vad, Whisper, record_utterance, FRAME, RATE
 from .tts import Sentences, Voice
+
+
+# диалог: после голосового ответа ещё раз слушаем без слова-активатора
+FOLLOW_WAIT = 6          # с — ждём, заговорит ли
+FOLLOW_MAX = 5           # реплик подряд; дальше — снова «обсидиан»
+END = {"стоп", "хватит", "всё", "все", "отбой", "отмена", "пока", "спасибо", "спасибо всё", "спасибо все",
+       "всё спасибо", "все спасибо", "спасибо хватит", "нет спасибо", "ничего"}
+# что Whisper «слышит» в тишине, шуме и музыке
+NOISE = ("продолжение следует", "субтитры", "спасибо за просмотр", "редактор субтитров", "подписывайтесь",
+         "музыка", "аплодисменты", "смех", "dimatorzok")
+
+
+def _plain(text: str) -> str:
+    return " ".join(re.sub(r"[^\w\s]", " ", text.lower()).split())
 
 
 class Daemon:
@@ -87,23 +102,32 @@ class Daemon:
     def busy(self):
         return self.job is not None and not self.job.done()
 
-    async def listen(self, cfg, to=None):
+    async def listen(self, cfg, to=None, depth=0):
+        """depth > 0 — продолжение разговора: ждём недолго, шум и «хватит» его заканчивают."""
         await self.set_state("listening")
         warm = asyncio.create_task(self.whisper.ensure(cfg))      # Whisper грузится, пока ты говоришь
         if to != "claude" and cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))             # и локальная модель
-        audio = await record_utterance(cfg["mic"], lambda v: self.emit("level", v=round(v, 3)))
+        level = lambda v: self.emit("level", v=round(v, 3))
+        audio = await (record_utterance(cfg["mic"], level, max_wait=FOLLOW_WAIT) if depth
+                       else record_utterance(cfg["mic"], level))
         if audio is None:
             warm.cancel()
             return
         await self.set_state("transcribing")
         await warm
         text = await self.whisper.transcribe(cfg, audio)
+        plain = _plain(text or "")
+        if depth and (len(plain) < 2 or plain.startswith(NOISE)):
+            return                                                # тишина или музыка — разговор окончен
         await self.emit("heard", text=text)
+        if depth and plain in END:
+            chime.play("done")
+            return
         if text:
-            await self.ask(text, voice=True, to=to)
+            await self.ask(text, voice=True, to=to, depth=depth)
 
-    async def ask(self, text, voice=False, speak=None, to=None):
+    async def ask(self, text, voice=False, speak=None, to=None, depth=0):
         cfg = config.load()
         speak = (cfg["speak_voice"] if voice else cfg["speak_typed"]) if speak is None else speak
         last = self.last_local[0] if self.last_local and time.monotonic() - self.last_local[1] < 120 else None
@@ -175,6 +199,9 @@ class Daemon:
                         actions=[{k: a[k] for k in ("name", "args", "ok", "show")} for a in actions])
         if speak:
             await self.voice.idle.wait()
+            if voice and cfg.get("follow_up") and depth < FOLLOW_MAX:
+                # диалог: слушаем ответ без слова-активатора; начали с Claude — с ним и продолжаем
+                await self.listen(cfg, to="claude" if backend == "claude" else None, depth=depth + 1)
 
     # ── слово-активатор: короткие фразы распознаются Whisper; начинается с имени — это к нам
     async def wake_loop(self):

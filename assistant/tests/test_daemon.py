@@ -158,6 +158,92 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         self.d.local.unload.assert_awaited_once()
 
 
+class FakeVoice:
+    def __init__(self):
+        self.idle = asyncio.Event()
+        self.idle.set()
+        self.said = []
+
+    async def ready(self, cfg):
+        pass
+
+    async def say(self, text, cfg):
+        self.said.append(text)
+
+    def stop(self):
+        pass
+
+
+class DialogTest(unittest.IsolatedAsyncioTestCase):
+    """После голосового ответа — слушать ещё раз без слова-активатора («поддерживать диалог»)."""
+
+    async def asyncSetUp(self):
+        cfg = {**config.DEFAULTS, "speak_voice": True, "follow_up": True}
+        for p in (patch("glass_assistant.config.load", return_value=cfg),
+                  patch("glass_assistant.config.has_key", return_value=True),
+                  patch("glass_assistant.daemon.chime.play")):
+            p.start()
+            self.addCleanup(p.stop)
+        self.d = Daemon()
+        self.d.local_brain = FakeBrain("локально")
+        self.d.claude_brain = FakeBrain("от Claude")
+        self.d.local = AsyncMock()
+        self.d.voice = FakeVoice()
+        self.d.whisper = AsyncMock()
+        self.heard = []                         # что «скажет» пользователь в следующих репликах (None — тишина)
+
+        async def record(mic, on_level, **kw):
+            self.waits = kw.get("max_wait")
+            return None if not self.heard or self.heard[0] is None else b"audio"
+        self.d.whisper.transcribe.side_effect = lambda cfg, audio: self.heard.pop(0)
+        p = patch("glass_assistant.daemon.record_utterance", record)
+        p.start()
+        self.addCleanup(p.stop)
+
+        async def emit(ev, **kw):
+            pass
+        self.d.emit = emit
+
+    async def test_follow_up_after_voice_answer(self):
+        self.heard = ["а завтра?", None]
+        await self.d.ask("какая погода", voice=True)
+        self.assertEqual(self.d.local_brain.asked, ["какая погода", "а завтра?"])
+        self.assertEqual(self.waits, 6)
+
+    async def test_no_follow_up_for_typed(self):
+        self.heard = ["а завтра?"]
+        await self.d.ask("какая погода")
+        self.assertEqual(self.d.local_brain.asked, ["какая погода"])
+
+    async def test_end_phrase_stops(self):
+        from glass_assistant import daemon
+        self.heard = ["Хватит."]
+        await self.d.ask("какая погода", voice=True)
+        self.assertEqual(self.d.local_brain.asked, ["какая погода"])
+        daemon.chime.play.assert_called_with("done")
+
+    async def test_whisper_noise_ignored(self):
+        self.heard = ["Продолжение следует...", None]
+        await self.d.ask("какая погода", voice=True)
+        self.assertEqual(self.d.local_brain.asked, ["какая погода"])
+
+    async def test_depth_limited(self):
+        self.heard = ["ещё"] * 20
+        await self.d.ask("начнём", voice=True)
+        self.assertEqual(len(self.d.local_brain.asked), 1 + 5)
+
+    async def test_claude_dialog_continues_with_claude(self):
+        self.heard = ["а подробнее?", None]
+        await self.d.ask("морковь, что такое кварк", voice=True)
+        self.assertEqual(self.d.claude_brain.asked, ["что такое кварк", "а подробнее?"])
+
+    async def test_follow_up_off(self):
+        self.heard = ["а завтра?"]
+        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "speak_voice": True, "follow_up": False}):
+            await self.d.ask("какая погода", voice=True)
+        self.assertEqual(self.d.local_brain.asked, ["какая погода"])
+
+
 class ServeTest(unittest.IsolatedAsyncioTestCase):
     async def test_stops_with_client_connected(self):
         # оболочка держит сокет открытым всегда; служба всё равно должна выйти по SIGTERM сразу,

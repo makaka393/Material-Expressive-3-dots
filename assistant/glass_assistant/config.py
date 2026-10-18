@@ -24,6 +24,7 @@ DEFAULTS = {
     "voice_pitch": "medium",     # тон: low | medium | high
     "voice_rate": "medium",      # темп: slow | medium | fast
     "wake": False,               # слушать слово-активатор
+    "follow_up": True,           # после голосового ответа слушать продолжение без слова-активатора
     # слово-активатор и его короткие формы; сравниваются по звучанию (router.wake)
     "wake_words": ["обсидиан", "обс", "обси", "обсик", "obsidian", "obs"],
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
