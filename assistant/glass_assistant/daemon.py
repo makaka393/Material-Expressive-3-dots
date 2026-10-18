@@ -44,6 +44,7 @@ class Daemon:
         self.local_brain = LocalBrain(self.local)
         self.claude_brain = ClaudeBrain()
         self.last_local = None           # (вопрос, время): «морковь» без вопроса переспросит его у Claude
+        self.stopping = asyncio.Event()  # SIGTERM/SIGINT
         self.whisper = Whisper()
         self.voice = Voice()
         self.clients = set()
@@ -290,15 +291,20 @@ class Daemon:
         server = await asyncio.start_unix_server(self.client, path=str(path))
         os.chmod(path, 0o600)
         tasks = [asyncio.create_task(self.reaper()), asyncio.create_task(self.wake_loop())]
-        stop = asyncio.Event()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, stop.set)
+            loop.add_signal_handler(sig, self.stopping.set)
         print(f"glass-assistant: {path}", flush=True)
         async with server:
-            await stop.wait()
-        for t in tasks:
-            t.cancel()
+            await self.stopping.wait()
+            for t in tasks:
+                t.cancel()
+            # выход из async with ждёт, пока закроются все подключения, а оболочка держит своё всегда —
+            # без этого служба висела до SIGKILL от systemd
+            for w in list(self.clients):
+                w.close()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.remove_signal_handler(sig)
         self.voice.stop()
         await self.whisper.stop()
         await self.local.stop()

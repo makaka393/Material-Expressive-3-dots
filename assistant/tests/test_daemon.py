@@ -1,4 +1,7 @@
+import asyncio
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from glass_assistant import config
@@ -123,6 +126,26 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         await self.d.command({"cmd": "unload"})
         self.d.local.warm.assert_called_once()
         self.d.local.unload.assert_awaited_once()
+
+
+class ServeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_stops_with_client_connected(self):
+        # оболочка держит сокет открытым всегда; служба всё равно должна выйти по SIGTERM сразу,
+        # а не висеть до SIGKILL от systemd через полторы минуты
+        with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
+            d = Daemon()
+            d.local = AsyncMock()
+            serving = asyncio.create_task(d.serve())
+            for _ in range(100):
+                if (Path(tmp) / "a.sock").exists():
+                    break
+                await asyncio.sleep(0.02)
+            reader, writer = await asyncio.open_unix_connection(str(Path(tmp) / "a.sock"))
+            await reader.readline()                              # первое событие state — клиент принят
+            d.stopping.set()
+            await asyncio.wait_for(serving, 3)
+            writer.close()
 
 
 if __name__ == "__main__":
