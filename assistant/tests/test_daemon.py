@@ -194,6 +194,7 @@ class DialogTest(unittest.IsolatedAsyncioTestCase):
 
         async def record(mic, on_level, **kw):
             self.waits = kw.get("max_wait")
+            self.tail = kw.get("tail")
             return None if not self.heard or self.heard[0] is None else b"audio"
         self.d.whisper.transcribe.side_effect = lambda cfg, audio: self.heard.pop(0)
         p = patch("glass_assistant.daemon.record_utterance", record)
@@ -209,6 +210,13 @@ class DialogTest(unittest.IsolatedAsyncioTestCase):
         await self.d.ask("какая погода", voice=True)
         self.assertEqual(self.d.local_brain.asked, ["какая погода", "а завтра?"])
         self.assertEqual(self.waits, 6)
+
+    async def test_listen_uses_pause_setting(self):
+        self.heard = ["а завтра?", None]
+        with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "speak_voice": True,
+                                                                "follow_up": True, "pause": 2.0}):
+            await self.d.ask("какая погода", voice=True)
+        self.assertEqual(self.tail, 2.0)
 
     async def test_no_follow_up_for_typed(self):
         self.heard = ["а завтра?"]

@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1020 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1100 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -824,6 +824,15 @@ Item {
                     current: Assistant.cfg.voiceRate
                     onPicked: v => voiceBox.preview({ rate: v })
                 }
+            }
+            // сколько тишины — конец фразы: коротко — быстрее отвечает, длинно — не обрывает на раздумье
+            Label { topPadding: 6; text: I18n.t("Пауза в конце фразы", "Pause before I stop listening"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            TunerChoice {
+                width: parent.width
+                options: [{ id: "0.8", t: I18n.t("Короткая · 0,8 с", "Short · 0.8 s") }, { id: "1.3", t: I18n.t("Обычная · 1,3 с", "Normal · 1.3 s") },
+                          { id: "2", t: I18n.t("Длинная · 2 с", "Long · 2 s") }]
+                current: String(Assistant.cfg.pause)
+                onPicked: v => Assistant.cfg.pause = parseFloat(v)
             }
             Repeater {
                 model: [

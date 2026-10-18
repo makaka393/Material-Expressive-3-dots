@@ -58,33 +58,41 @@ class Vad:
         return loud
 
 
-async def record_utterance(source, on_level, max_wait=6.0, max_len=20.0, tail=0.75):
-    """Ждёт начала речи (до max_wait с) и пишет до паузы tail с. Возвращает int16 или None."""
-    vad = Vad()
-    chunks, started, quiet, t0 = [], False, 0.0, time.monotonic()
-    pre = []                                          # 300 мс до начала речи — не съесть первый слог
+async def record_utterance(source, on_level, max_wait=6.0, max_len=30.0, tail=1.3, frames=None):
+    """Ждёт начала речи (до max_wait с) и пишет до паузы tail с (настройка «пауза в конце фразы»: при 0,75 с
+    фразу обрывало на раздумье посреди неё). Возвращает int16 или None. frames — кадры вместо микрофона (тесты)."""
+    if frames is not None:
+        return await _collect(frames, on_level, max_wait, max_len, tail)
     async with Mic(source) as mic:
-        n = 0
-        async for frame in mic.frames():
-            n += 1
-            rms = vad.level(frame)
-            if n % 2 == 0:
-                await on_level(min(1.0, rms / 6000.0))
-            if n < 8:                                 # первые 240 мс — только шум комнаты
-                vad.speech(rms)
-                continue
-            talking = vad.speech(rms)
-            if not started:
-                pre = (pre + [frame])[-10:]
-                if talking:
-                    started, chunks = True, pre[:]
-                elif time.monotonic() - t0 > max_wait:
-                    return None
-                continue
-            chunks.append(frame)
-            quiet = 0.0 if talking else quiet + FRAME / RATE
-            if quiet >= tail or len(chunks) * FRAME / RATE >= max_len:
-                break
+        return await _collect(mic.frames(), on_level, max_wait, max_len, tail)
+
+
+async def _collect(frames, on_level, max_wait, max_len, tail):
+    vad = Vad()
+    chunks, started, quiet, n = [], False, 0.0, 0
+    pre = []                                          # 300 мс до начала речи — не съесть первый слог
+    async for frame in frames:
+        n += 1
+        rms = vad.level(frame)
+        if n % 2 == 0:
+            await on_level(min(1.0, rms / 6000.0))
+        if n < 8:                                     # первые 240 мс — только шум комнаты
+            vad.speech(rms)
+            continue
+        talking = vad.speech(rms)
+        if not started:
+            pre = (pre + [frame])[-10:]
+            if talking:
+                started, chunks = True, pre[:]
+            elif n * FRAME / RATE > max_wait:         # по кадрам, а не по часам: тесты идут быстрее речи
+                return None
+            continue
+        chunks.append(frame)
+        quiet = 0.0 if talking else quiet + FRAME / RATE
+        if quiet >= tail or len(chunks) * FRAME / RATE >= max_len:
+            break
+    if not chunks:
+        return None
     audio = np.concatenate(chunks)
     return audio if len(audio) > RATE * 0.35 else None
 
