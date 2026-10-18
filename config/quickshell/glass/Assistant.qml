@@ -126,6 +126,7 @@ Singleton {
             property bool speakVoice: true
             property bool speakTyped: false
             property bool wake: false
+            property bool followUp: true                // после голосового ответа слушать продолжение
             property var wakeWords: ["обсидиан"]
             property var claudeWords: ["морковь"]
             property string mic: ""

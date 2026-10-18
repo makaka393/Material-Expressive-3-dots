@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 960 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1020 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -830,7 +830,9 @@ Item {
                     { k: "speakVoice", icon: "record_voice_over", t: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") },
                     { k: "speakTyped", icon: "keyboard", t: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") },
                     { k: "wake", icon: "hearing", t: I18n.t("Слово-активатор: «" + (Assistant.cfg.wakeWords[0] || "обсидиан") + "»; «" + (Assistant.cfg.claudeWords[0] || "морковь") + "» после него — Claude",
-                                                         "Wake word: “" + (Assistant.cfg.wakeWords[0] || "obsidian") + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") }
+                                                         "Wake word: “" + (Assistant.cfg.wakeWords[0] || "obsidian") + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") },
+                    { k: "followUp", icon: "forum", t: I18n.t("Разговор: после ответа слушать продолжение без «обсидиан»",
+                                                              "Conversation: after an answer, keep listening without the wake word") }
                 ]
                 Rectangle {
                     id: asOpt
