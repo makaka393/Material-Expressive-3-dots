@@ -20,7 +20,14 @@ async def client(cmd: dict, wait: bool):
     writer.write((json.dumps(cmd, ensure_ascii=False) + "\n").encode())
     await writer.drain()
     if not wait:
+        # дождаться первого события: служба при подключении пишет клиенту состояние, и если клиент уже
+        # ушёл, запись рвёт соединение — непрочитанная команда терялась (`unload` не выгружал модель)
+        try:
+            await asyncio.wait_for(reader.readline(), 2)
+        except asyncio.TimeoutError:
+            pass
         writer.close()
+        await writer.wait_closed()
         return 0
     asked = False
     while line := await reader.readline():
@@ -70,4 +77,5 @@ def main():
         sys.exit(1)
 
 
-main()
+if __name__ == "__main__":
+    main()

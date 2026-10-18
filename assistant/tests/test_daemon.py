@@ -178,5 +178,29 @@ class ServeTest(unittest.IsolatedAsyncioTestCase):
             writer.close()
 
 
+class CliTest(unittest.IsolatedAsyncioTestCase):
+    async def test_fire_and_forget_command_not_lost(self):
+        # `python -m glass_assistant unload` пишет команду и сразу уходит; служба первым делом шлёт ему
+        # состояние, запись в закрытый сокет рвёт соединение — и непрочитанная команда терялась
+        with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
+            d = Daemon()
+            d.local = AsyncMock()
+            serving = asyncio.create_task(d.serve())
+            for _ in range(100):
+                if (Path(tmp) / "a.sock").exists():
+                    break
+                await asyncio.sleep(0.02)
+            from glass_assistant.__main__ import client
+            await client({"cmd": "unload"}, False)
+            for _ in range(50):
+                if d.local.unload.await_count:
+                    break
+                await asyncio.sleep(0.02)
+            d.stopping.set()
+            await asyncio.wait_for(serving, 3)
+        d.local.unload.assert_awaited_once()
+
+
 if __name__ == "__main__":
     unittest.main()
