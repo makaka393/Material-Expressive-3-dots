@@ -1,11 +1,13 @@
 """Плеер: то, что уже играет (любой MPRIS через playerctl), и музыка по названию в Spotify."""
 import asyncio
+import json
 import os
 import time
 from urllib.parse import quote
 
 import httpx2
 
+from .. import config
 from . import base, register
 from .base import Result, Tool
 
@@ -79,6 +81,66 @@ async def search(query, kind):
     return {"uri": it["uri"], "name": it["name"], "by": by}
 
 
+# ── без ключей Spotify: Spotify ID исполнителя, альбома, трека — из Wikidata (P1902, P2205, P2207).
+#    Есть почти у всех известных исполнителей («Металлика», «Кино») и у многих треков. Найденное — в кэш.
+WD = "https://www.wikidata.org/w/api.php"
+PROPS = {"artist": "P1902", "album": "P2205", "track": "P2207"}
+CACHE = config.DATA / "music-cache.json"
+
+
+async def _wd_get(params):
+    async with httpx2.AsyncClient(timeout=6, headers={"User-Agent": "glass-assistant/1.0 (personal desktop assistant)"}) as http:
+        r = await http.get(WD, params={**params, "format": "json"})
+        r.raise_for_status()
+        return r.json()
+
+
+def _cache():
+    try:
+        return json.loads(CACHE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+async def wikidata(query, kind):
+    """Первое подходящее из поиска Wikidata: {"uri", "name", "by"} или None (не нашлось, сеть, лимит)."""
+    key = f"{kind}:{query.strip().lower()}"
+    cache = _cache()
+    if key in cache:
+        return cache[key]
+    try:
+        found = await asyncio.wait_for(_wd_lookup(query, kind), 8)
+    except Exception as e:                       # сеть, 429 — тогда просто откроем поиск в Spotify
+        print("wikidata:", e, flush=True)
+        return None
+    if found:
+        cache[key] = found
+        try:
+            CACHE.write_text(json.dumps(cache, ensure_ascii=False))
+        except OSError:
+            pass
+    return found
+
+
+async def _wd_lookup(query, kind):
+    hits = (await _wd_get({"action": "wbsearchentities", "search": query, "language": "ru", "uselang": "ru",
+                           "type": "item", "limit": 7})).get("search", [])
+    ids = [h["id"] for h in hits]
+    if not ids:
+        return None
+    ents = (await _wd_get({"action": "wbgetentities", "ids": "|".join(ids), "props": "claims|labels",
+                           "languages": "ru|en"})).get("entities", {})
+    for k in [kind] if kind in PROPS else ["artist", "track", "album"]:
+        for i in ids:
+            e = ents.get(i, {})
+            claim = (e.get("claims") or {}).get(PROPS[k])
+            if claim:
+                labels = e.get("labels") or {}
+                name = (labels.get("ru") or labels.get("en") or {}).get("value", query)
+                return {"uri": f"spotify:{k}:{claim[0]['mainsnak']['datavalue']['value']}", "name": name, "by": ""}
+    return None
+
+
 async def _spotify_running():
     if "spotify" in (await base.sh("playerctl", "-l")).split():
         return True
@@ -93,14 +155,17 @@ async def _spotify_running():
 
 async def play_music(args):
     query = args["query"].strip()
-    kind = {"artist": "artist", "album": "album", "playlist": "playlist"}.get(args.get("kind"), "track")
-    if not (os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET")):
-        await base.launch("xdg-open", f"spotify:search:{query}")
-        return Result(True, f"Открыл поиск «{query}» в Spotify",
-                      "Открыл поиск в Spotify. Чтобы включалось сразу, нужен ключ Spotify.")
-    found = await search(query, kind)
-    if not found:
-        return Result(False, f"Не нашёл «{query}» в Spotify", f"Не нашёл «{query}» в Spotify.")
+    kind = args.get("kind") if args.get("kind") in ("artist", "album", "playlist", "track") else "any"
+    if os.environ.get("SPOTIFY_CLIENT_ID") and os.environ.get("SPOTIFY_CLIENT_SECRET"):
+        found = await search(query, kind if kind != "any" else "track")
+        if not found:
+            return Result(False, f"Не нашёл «{query}» в Spotify", f"Не нашёл «{query}» в Spotify.")
+    else:
+        found = await wikidata(query, kind if kind != "playlist" else "any")
+        if not found:
+            await base.launch("xdg-open", f"spotify:search:{query}")
+            return Result(True, f"Открыл поиск «{query}» в Spotify",
+                          "Сразу не нашёл — открыл поиск в Spotify. С ключом Spotify нашлось бы точнее.")
     if not await _spotify_running():
         return Result(False, "Spotify не запустился", "Spotify не запустился.")
     await base.sh("playerctl", "-p", "spotify", "open", found["uri"])
@@ -109,7 +174,8 @@ async def play_music(args):
 
 register(Tool(
     "play_music",
-    "Найти и включить в Spotify конкретное: трек, исполнителя, альбом, плейлист или жанр («включи Linkin Park», "
-    "«поставь Numb»). Без названия не вызывать — это media",
+    "Найти и включить в Spotify конкретное: трек, исполнителя, альбом, плейлист («включи Linkin Park», «поставь Numb», "
+    "«вруби металлику»). query — название в именительном падеже, как его пишут: Metallica, «Король и Шут». "
+    "Без названия не вызывать — это media",
     {"query": {"type": "string"}, "kind": {"type": "string", "enum": ["track", "artist", "album", "playlist", "any"]}},
     ["query"], play_music))

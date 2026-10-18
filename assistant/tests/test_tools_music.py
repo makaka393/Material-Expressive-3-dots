@@ -44,8 +44,17 @@ class MusicTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(r.ok)
         self.assertEqual(r.say, "Не нашёл «ыыыы» в Spotify.")
 
+    async def test_without_keys_uses_wikidata(self):
+        # «включи металлику» без ключей Spotify: Spotify ID исполнителя — из Wikidata
+        wd = AsyncMock(return_value={"uri": "spotify:artist:2ye2", "name": "Metallica", "by": ""})
+        with patch.dict(os.environ, {}, clear=True), patch.object(media, "wikidata", wd):
+            r = await tools.run("play_music", {"query": "Металлика", "kind": "artist"})
+        wd.assert_awaited_once_with("Металлика", "artist")
+        self.assertIn(("playerctl", "-p", "spotify", "open", "spotify:artist:2ye2"), self.calls)
+        self.assertEqual(r.show, "Включаю Metallica")
+
     async def test_without_keys_opens_search(self):
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True), patch.object(media, "wikidata", AsyncMock(return_value=None)):
             r = await tools.run("play_music", {"query": "linkin park", "kind": "artist"})
         self.launch.assert_awaited_with("xdg-open", "spotify:search:linkin park")
         self.assertTrue(r.ok)
@@ -59,6 +68,42 @@ class MusicTest(unittest.IsolatedAsyncioTestCase):
         self.launch.assert_any_await("gtk-launch", "spotify")
         self.assertFalse(r.ok)                         # так и не появился за время ожидания
         self.assertNotIn(("playerctl", "-p", "spotify", "open", "spotify:track:42"), self.calls)
+
+
+SEARCH = {"search": [{"id": "Q1"}, {"id": "Q2"}, {"id": "Q3"}]}
+ENTITIES = {"entities": {
+    "Q1": {"labels": {"ru": {"value": "Numb (альбом)"}}, "claims": {"P2205": [{"mainsnak": {"datavalue": {"value": "alb1"}}}]}},
+    "Q2": {"labels": {"en": {"value": "Numb"}}, "claims": {"P2207": [{"mainsnak": {"datavalue": {"value": "trk2"}}}]}},
+    "Q3": {"labels": {"ru": {"value": "Numb (группа)"}}, "claims": {"P1902": [{"mainsnak": {"datavalue": {"value": "art3"}}}]}}}}
+
+
+class WikidataTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.get = AsyncMock(side_effect=lambda params: SEARCH if params["action"] == "wbsearchentities" else ENTITIES)
+        for p in (patch.object(media, "_wd_get", self.get), patch.object(media, "CACHE", Path(tmp.name) / "c.json")):
+            p.start()
+            self.addCleanup(p.stop)
+
+    async def test_prefers_requested_kind(self):
+        self.assertEqual(await media.wikidata("Numb", "track"), {"uri": "spotify:track:trk2", "name": "Numb", "by": ""})
+        self.assertEqual((await media.wikidata("Numb", "album"))["uri"], "spotify:album:alb1")
+
+    async def test_any_prefers_artist(self):
+        self.assertEqual((await media.wikidata("Numb", "any"))["uri"], "spotify:artist:art3")
+
+    async def test_cached(self):
+        await media.wikidata("Numb", "track")
+        calls = self.get.await_count
+        await media.wikidata("numb", "track")
+        self.assertEqual(self.get.await_count, calls)
+
+    async def test_network_error_is_none(self):
+        self.get.side_effect = RuntimeError("429 Too Many Requests")
+        self.assertIsNone(await media.wikidata("Metallica", "artist"))
 
 
 class TokenTest(unittest.IsolatedAsyncioTestCase):
