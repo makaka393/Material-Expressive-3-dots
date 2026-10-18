@@ -29,7 +29,7 @@ async def client(cmd: dict, wait: bool):
         writer.close()
         await writer.wait_closed()
         return 0
-    asked = False
+    asked = streamed = False
     while line := await reader.readline():
         ev = json.loads(line)
         if ev["ev"] == "state" and ev["state"] != "idle":
@@ -37,10 +37,13 @@ async def client(cmd: dict, wait: bool):
         elif ev["ev"] == "action":
             print(f"⚙ {ev['show']}", flush=True)
         elif ev["ev"] == "delta":
+            streamed = True
             print(ev["text"], end="", flush=True)
         elif ev["ev"] == "heard":
             print(f"» {ev['text']}", flush=True)
         elif ev["ev"] == "done":
+            if not streamed and not ev.get("actions") and ev.get("text"):
+                print(ev["text"], end="")                # «Отменил» — ответ без потока и действий
             print(f"\n[{ev['backend']}]", flush=True)
         elif ev["ev"] == "error":
             print(f"\nошибка: {ev['text']}", file=sys.stderr, flush=True)
