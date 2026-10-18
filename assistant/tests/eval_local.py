@@ -92,10 +92,25 @@ CASES = [
     ("забудь про мою машину", [("forget", lambda c: "машин" in low(arg(c, "what")))]),
     ("как меня зовут", "chat:ром"),
     ("что ты обо мне знаешь", "chat:ром"),
-    # инструментов ещё нет — сказать «не умею», а не хвататься за чужой
-    ("выключи компьютер", "chat"),
-    ("перезагрузи комп", "chat"),
-    ("заблокируй экран", "chat"),
+    # оболочка, справка, таймеры, питание
+    ("выключи компьютер", [("power", lambda c: arg(c, "action") == "shutdown")]),
+    ("перезагрузи комп", [("power", lambda c: arg(c, "action") == "reboot")]),
+    ("заблокируй экран", [("lock_screen", lambda c: True)]),
+    ("сделай скриншот области", [("screenshot", lambda c: arg(c, "area") == "region")]),
+    ("начни запись экрана", [("screen_record", lambda c: arg(c, "action") == "start")]),
+    ("смени обои", [("wallpaper", lambda c: True)]),
+    ("выключи вайфай", [("radio", lambda c: arg(c, "device") == "wifi" and arg(c, "on") is False)]),
+    ("какая погода", [("system_info", lambda c: arg(c, "kind") == "weather")]),
+    ("сколько времени", ([("system_info", lambda c: arg(c, "kind") == "time")], "chat")),
+    ("насколько загружен процессор", [("system_info", lambda c: arg(c, "kind") == "cpu")]),
+    ("как там видеокарта, не греется", [("system_info", lambda c: arg(c, "kind") == "gpu")]),
+    ("что сейчас играет", [("system_info", lambda c: arg(c, "kind") == "now_playing")]),
+    ("сколько заряда в наушниках", [("system_info", lambda c: arg(c, "kind") == "headphones")]),
+    ("поставь таймер на полтора часа", [("timer", lambda c: (n(arg(c, "hours")) * 60 + n(arg(c, "minutes"))) == 90)]),
+    ("напомни через 20 минут выключить плиту", [("reminder", lambda c: arg(c, "in_minutes") == 20 and "плит" in low(arg(c, "text")))]),
+    ("напомни в 18:00 позвонить маме", [("reminder", lambda c: arg(c, "at") == "18:00" and "мам" in low(arg(c, "text")))]),
+    ("разбуди меня в 7:30", [("alarm", lambda c: low(arg(c, "time")).lstrip("0") == "7:30")]),
+    ("вруби металлику", [("play_music", lambda c: "металлик" in low(arg(c, "query")) or "metallica" in low(arg(c, "query")))]),
     # вопросы — отвечает сама, хотя бы примерно; в Claude отправляет только «морковь»
     ("напиши скрипт на питоне для разбора логов nginx", "chat"),
     ("какие главные новости в мире сегодня", ("chat", [("web_search", lambda c: "новост" in low(arg(c, "query")))])),
@@ -106,6 +121,34 @@ CASES = [
 
 
 VOICE = "--voice" in sys.argv
+AREAS = {"screenshot": "full", "screenshot_region": "region", "screenshot_frame": "pretty", "lens": "lens"}
+
+
+def internal(name, a):
+    """Вызов укрупнённого инструмента (public.py) → прежнее мелкое имя: ожидания ниже — в них."""
+    act = a.get("action")
+    if name == "toggle":
+        f = a.get("feature")
+        return (f, {"on": a.get("on")}) if f in ("night_light", "do_not_disturb") else ("radio", {"device": f, "on": a.get("on")})
+    if name == "app":
+        return ("close_app" if act == "close" else "open_app"), {"name": a.get("name")}
+    if name == "web":
+        return ("open_url", {"url": a["url"]}) if a.get("url") else ("web_search", {"query": a.get("query"), "site": a.get("site")})
+    if name == "window" and act == "move":
+        return "move_window", {"workspace": a.get("workspace")}
+    if name == "screen":
+        if act in AREAS:
+            return "screenshot", {"area": AREAS[act]}
+        if act in ("record", "stop_record"):
+            return "screen_record", {"action": "start" if act == "record" else "stop"}
+        return {"lock": "lock_screen", "wallpaper": "wallpaper"}.get(act, "screen"), {}
+    if name == "timer" and act == "stop":
+        return "cancel_timer", {}
+    if name == "reminder" and a.get("alarm"):
+        return "alarm", {"time": a.get("at")}
+    if name == "memory":
+        return ("forget", {"what": a.get("text")}) if act == "forget" else ("remember", {"fact": a.get("text")})
+    return name, a
 
 
 def verdict(expect, calls, text):
@@ -131,7 +174,7 @@ async def main():
             args = json.loads(args or "{}") if isinstance(args, str) else args
         except ValueError:
             args = {}
-        calls.append({"name": name, "args": args})
+        calls.append(dict(zip(("name", "args"), internal(name, args))))
         return Result(True, "ок")
 
     tmp = tempfile.TemporaryDirectory()

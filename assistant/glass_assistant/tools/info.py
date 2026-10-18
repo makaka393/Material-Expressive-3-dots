@@ -149,7 +149,8 @@ async def system_info(args):
     return Result(True, text, text)
 
 
-register(Tool("system_info", "Справка — ответить голосом: время, дата, погода, загрузка процессора, видеокарты, память, "
+register(Tool("system_info", "Справка — ответить голосом: время, дата, погода (в городе пользователя — не переспрашивай), "
+              "загрузка процессора, видеокарты, память, "
               "место на диске, заряд наушников, что сейчас играет",
               {"kind": {"type": "string", "enum": ["time", "date", "weather", "cpu", "gpu", "memory", "disk",
                                                    "headphones", "now_playing"]}}, ["kind"], system_info))

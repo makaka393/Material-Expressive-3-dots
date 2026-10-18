@@ -15,10 +15,9 @@ from datetime import datetime
 
 import httpx2
 
-from . import config, memory, tools
+from . import config, intents, memory, tools
 
-SYSTEM = """Ты — {name}, голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). О себе говори
-в {gender} роде. Отвечай по-русски.
+SYSTEM = """Ты — голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). Отвечай по-русски.
 - Просят что-то сделать — вызови инструмент. Не переспрашивай, если можно разумно догадаться.
 - Несколько действий в одной фразе — несколько вызовов.
 - Подходящего инструмента нет — коротко скажи, что пока так не умеешь. Не вызывай другой инструмент вместо него.
@@ -31,9 +30,10 @@ DAYS = ["понедельник", "вторник", "среда", "четвер�
 HISTORY_IDLE = 120               # с: разговор с локальной моделью короткий — «а теперь громче»
 STAMP = re.compile(r"^\s*\[[^\]]*\]\s*")
 # «Блокирую экран.» без вызова инструмента — модель только пообещала; переспрашиваем с обязательным вызовом
-CLAIM = re.compile(r"^((хорошо|конечно|ладно|окей|ок|сейчас),?\s*)?(я\s+)?(блокирую|включаю|включу|выключаю|выключу|"
-                   r"выполняю|перезагружаю|запускаю|запущу|открываю|открою|ставлю|поставлю|делаю|сделаю|переключаю|"
-                   r"убавляю|убавлю|прибавляю|прибавлю|запомнил|запоминаю|забыл|забываю)", re.I)
+CLAIM = re.compile(r"^((хорошо|конечно|ладно|окей|ок|сейчас|с удовольствием),?\s*)?(я\s+)?(блокирую|заблокирую|"
+                   r"включаю|включу|выключаю|выключу|отключаю|отключу|выполняю|перезагружаю|запускаю|запущу|"
+                   r"начинаю|открываю|открою|ставлю|поставлю|делаю|сделаю|переключаю|переключу|меняю|сменю|"
+                   r"убавляю|убавлю|прибавляю|прибавлю|вызываю|проверяю|запомнил|запоминаю|забыл|забываю)", re.I)
 # вызов, написанный текстом: «power off», «suggest_claude{}», «media{"action": …» — тоже переспрашиваем.
 # Ассистент отвечает по-русски, так что короткий текст из одной латиницы — не ответ
 PSEUDO = re.compile(r"[\x20-\x7e]*[A-Za-z][\x20-\x7e]*")
@@ -54,9 +54,9 @@ class Reply:
 
 
 def system(cfg) -> str:
-    """Имя, род по голосу и память меняются редко — промпт (и кэш llama-server) пересчитывается только тогда."""
-    return (SYSTEM.format(name=cfg.get("name") or config.DEFAULTS["name"],
-                          gender="женском" if config.female(cfg) else "мужском") + memory.store.prompt())
+    """Имя — одной строкой в конце: «Ты — Ирис…» в начале промпта делало модель болтливой, она отвечала словами
+    вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с). Имя и память меняются редко — кэш не сбивается."""
+    return SYSTEM + f"\nТебя зовут {cfg.get('name') or config.DEFAULTS['name']}." + memory.store.prompt()
 
 
 class LocalServer:
@@ -182,9 +182,12 @@ class LocalBrain:
 
     async def answer(self, text, voice, on_delta, on_action) -> Reply:
         cfg = config.load()
-        await self.server.ensure(cfg)
         if self.history and time.monotonic() - self.last > HISTORY_IDLE:
             self.history = []
+        fast = intents.match(text)
+        if fast:                                 # частая команда — без модели (и даже без её загрузки)
+            return await self._fast(text, *fast, cfg, on_action)
+        await self.server.ensure(cfg)
         # спрошено голосом или нет — запрос тот же: указание «ответ озвучат» сбивает модель, и вместо
         # вызова инструмента она пишет «Устанавливаю громкость…»; ответы и так короткие, числа словами
         # делает озвучка (numbers.py)
@@ -235,6 +238,18 @@ class LocalBrain:
         self.history = (self.history + [turn])[-cfg["local_history_turns"]:]
         self.last = time.monotonic()
         return Reply(reply_text, actions)
+
+    async def _fast(self, text, name, args, cfg, on_action) -> Reply:
+        res = await tools.run(name, args)
+        action = {"name": name, "args": args, "ok": res.ok, "show": res.show, "say": res.say}
+        await on_action(action)
+        # в историю — как будто модель сама вызвала: «а ещё чуть-чуть» она поймёт
+        call = {"id": "fast_0", "type": "function", "function": {"name": name, "arguments": json.dumps(args, ensure_ascii=False)}}
+        turn = [{"role": "user", "content": self.stamp(text)}, {"role": "assistant", "content": None, "tool_calls": [call]},
+                {"role": "tool", "tool_call_id": "fast_0", "content": res.show or ("ок" if res.ok else "ошибка")}]
+        self.history = (self.history + [turn])[-cfg["local_history_turns"]:]
+        self.last = time.monotonic()
+        return Reply("", [action])
 
     async def _complete(self, msgs, on_text, tool_choice=None, extra=()):
         """Потоковый запрос; текст — в on_text по кускам, вызовы собираются из кусков. → (текст, вызовы)."""

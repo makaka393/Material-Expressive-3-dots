@@ -20,6 +20,7 @@ class Tool:
     params: dict                # JSON Schema свойств
     required: list
     handler: Callable[[dict], Awaitable[Result]] | None
+    visible: bool = True        # показывать ли модели (скрытые вызываются через укрупнённые — public.py)
 
 
 async def sh(*argv: str, timeout: float = 5) -> str:

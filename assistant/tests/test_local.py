@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from glass_assistant import config, tools
+from glass_assistant.intents import match as real_match          # до подмен в setUp
 from glass_assistant.local import Gate, LocalBrain, LocalServer, Reply
 from glass_assistant.tools.base import Result, Tool
 
@@ -81,7 +82,9 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.llama = FakeLlama()
         await self.llama.start()
         self.addAsyncCleanup(self.llama.close)
-        for p in (patch.dict(tools.TOOLS, TEST_TOOLS), patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS))):
+        # здесь проверяется путь через модель; быстрый путь (шаблоны) — в своём тесте
+        for p in (patch.dict(tools.TOOLS, TEST_TOOLS), patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS)),
+                  patch("glass_assistant.local.intents.match", lambda text: None)):
             p.start()
             self.addCleanup(p.stop)
         self.brain = LocalBrain(FakeServer(self.llama.url))
@@ -94,6 +97,18 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         async def on_action(a):
             self.actions.append(a)
         return await self.brain.answer(q, voice, on_delta, on_action)
+
+    async def test_fast_path_skips_model_keeps_history(self):
+        # «громче» — шаблон, без модели (0 мс вместо ~0,4 с); но в истории есть: «а ещё» модель поймёт
+        with patch("glass_assistant.local.intents.match", real_match):
+            reply = await self.ask("громче")
+        self.assertEqual(self.llama.bodies, [])
+        self.assertEqual(ran, [{"change": 10}])
+        self.assertEqual(reply.actions[0]["show"], "Громкость 50%")
+        self.llama.replies = [[text("ок")]]
+        await self.ask("а ещё чуть-чуть")                      # шаблона на это нет — к модели
+        roles = [m["role"] for m in self.llama.bodies[0]["messages"]]
+        self.assertEqual(roles, ["system", "user", "assistant", "tool", "user"])
 
     async def test_streams_text_and_strips_stamp(self):
         self.llama.replies = [[text("[2026-10-18 14:05, "), text("воскресенье] "), text("Привет"), text("!")]]
@@ -212,10 +227,12 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Юна", "voice": "aidar"}):
             await self.ask("кто ты")
         first, second = (b["messages"][0]["content"] for b in self.llama.bodies)
-        self.assertIn("Ты — Аврора", first)
-        self.assertIn("в женском роде", first)
-        self.assertIn("Ты — Юна", second)
-        self.assertIn("в мужском роде", second)
+        # только имя и только в конце: «Ты — Ирис… о себе в женском роде» в начале делало модель болтливой —
+        # она отвечала словами вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с)
+        self.assertIn("Тебя зовут Аврора.", first)
+        self.assertIn("Тебя зовут Юна.", second)
+        self.assertNotIn("роде", first)
+        self.assertTrue(first.startswith("Ты — голосовой ассистент"))
 
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)
@@ -243,7 +260,9 @@ class GateTest(unittest.TestCase):
     def test_memory_claims_are_claims(self):
         # «Я забыл информацию о машине.» без вызова forget — пустое обещание
         for t in ("Я забыл информацию о твоей машине.", "Запомнил, тебя зовут Рома.", "Хорошо, запоминаю.",
-                  "Конечно, делаю потише.", "Сделаю потише. На сколько уменьшить громкость?", "Сейчас включу."):
+                  "Конечно, делаю потише.", "Сделаю потише. На сколько уменьшить громкость?", "Сейчас включу.",
+                  "Начинаю запись экрана.", "Отключаю режим «не беспокоить».", "Вызываю инструмент lock_screen.",
+                  "С удовольствием, я сменю обои на случайные из папки.", "Проверяю погоду."):
             self.assertEqual(self.run_gate([t]), ("", True), t)
 
     def test_stamp_stripped(self):

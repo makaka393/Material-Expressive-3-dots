@@ -39,7 +39,7 @@ async def media(args):
 register(Tool(
     "media",
     "Управление тем, что уже играет: пауза, продолжить («включи музыку» без названия — play), "
-    "следующий/предыдущий трек («следующую», «скип»), перемотка",
+    "следующий/предыдущий трек («следующую», «скип», «другую песню» — next), перемотка",
     {"action": {"type": "string", "enum": ["play", "pause", "toggle", "next", "previous", "seek_forward", "seek_back"]},
      "seconds": {"type": "integer", "description": "для перемотки"}},
     ["action"], media))

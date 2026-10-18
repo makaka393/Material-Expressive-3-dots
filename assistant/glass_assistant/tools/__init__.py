@@ -24,12 +24,12 @@ def _schema(t: Tool) -> dict:
 
 def openai_tools() -> list[dict]:
     return [{"type": "function", "function": {"name": t.name, "description": t.description, "parameters": _schema(t)}}
-            for t in TOOLS.values()]
+            for t in TOOLS.values() if t.visible]
 
 
 def anthropic_tools() -> list[dict]:
     return [{"name": t.name, "description": t.description, "input_schema": _schema(t)}
-            for t in TOOLS.values()]
+            for t in TOOLS.values() if t.visible]
 
 
 def _coerce(value, schema):
@@ -69,3 +69,4 @@ async def run(name: str, args) -> Result:
 
 
 from . import apps, info, media, power, remember, shell, system, timers, windows  # noqa: E402,F401 — регистрируют свои инструменты
+from . import public  # noqa: E402,F401 — укрупнённые инструменты для модели
