@@ -1,0 +1,124 @@
+"""Оценка локальной модели на живом llama-server: верно ли выбирает действия и как быстро.
+
+Не входит в unittest (имя без test_): нужна видеокарта и ~3,3 ГБ видеопамяти. Действия не выполняются —
+инструменты подменены записью вызовов. Запуск из assistant/:
+    python -m tests.eval_local            вопросы как из лаунчера
+    python -m tests.eval_local --voice    как голосом (с указанием про озвучку)
+"""
+import asyncio
+import json
+import statistics
+import sys
+import time
+from unittest.mock import patch
+
+from glass_assistant import config, tools
+from glass_assistant.local import LocalBrain, LocalServer
+from glass_assistant.tools.base import Result
+
+
+def arg(c, k):
+    return c["args"].get(k)
+
+
+def n(v):
+    return v if isinstance(v, (int, float)) else 0
+
+
+# (фраза, ожидание): ожидание — список (инструмент, проверка) | "chat" | "suggest" | набор допустимых вариантов
+CASES = [
+    ("поставь на паузу", [("media", lambda c: arg(c, "action") in ("pause", "toggle"))]),
+    ("следующий трек", [("media", lambda c: arg(c, "action") == "next")]),
+    ("скип", [("media", lambda c: arg(c, "action") == "next")]),
+    ("следуюший трэк", [("media", lambda c: arg(c, "action") == "next")]),
+    ("верни предыдущую песню", [("media", lambda c: arg(c, "action") == "previous")]),
+    ("перемотай на 30 секунд вперёд", [("media", lambda c: arg(c, "action") == "seek_forward" and arg(c, "seconds") == 30)]),
+    ("продолжи музыку", [("media", lambda c: arg(c, "action") in ("play", "toggle"))]),
+    ("включи музыку", [("media", lambda c: arg(c, "action") in ("play", "toggle"))]),
+    ("выключи музыку", [("media", lambda c: arg(c, "action") in ("pause", "toggle"))]),
+    ("сделай громче", [("volume", lambda c: n(arg(c, "change")) > 0)]),
+    ("громкость на 30", [("volume", lambda c: arg(c, "level") == 30)]),
+    ("выключи звук", [("volume", lambda c: arg(c, "mute") is True)]),
+    ("эээ слушай можешь сделать потише немного", [("volume", lambda c: n(arg(c, "change")) < 0)]),
+    ("звук на половину", [("volume", lambda c: arg(c, "level") == 50)]),
+    ("громко слишком", [("volume", lambda c: n(arg(c, "change")) < 0 or n(arg(c, "level")) and arg(c, "level") < 50)]),
+    ("убавь яркость", [("brightness", lambda c: n(arg(c, "change")) < 0)]),
+    ("яркость на максимум", [("brightness", lambda c: arg(c, "level") == 100)]),
+    ("выкрути яркость на максимум", [("brightness", lambda c: arg(c, "level") == 100)]),
+    ("включи ночной режим", [("night_light", lambda c: arg(c, "on") is True)]),
+    ("выключи ночной режим", [("night_light", lambda c: arg(c, "on") is False)]),
+    ("включи режим не беспокоить", [("do_not_disturb", lambda c: arg(c, "on") is True)]),
+    ("отключи не беспокоить", [("do_not_disturb", lambda c: arg(c, "on") is False)]),
+    ("громче и следующий трек", [("volume", lambda c: n(arg(c, "change")) > 0), ("media", lambda c: arg(c, "action") == "next")]),
+    ("сделай яркость поменьше и включи ночник", [("brightness", lambda c: n(arg(c, "change")) < 0), ("night_light", lambda c: arg(c, "on") is True)]),
+    ("привет, как дела", "chat"),
+    ("сколько будет 17 умножить на 23", "chat"),
+    ("спасибо", "chat"),
+    ("я устал", "chat"),
+    ("как выключить компьютер в линуксе", {"chat", "suggest"}),
+    ("не выключай компьютер, я ещё работаю", "chat"),
+    ("открой браузер", {"chat", "suggest"}),          # этап 2 — инструмента ещё нет: не хвататься за чужой
+    ("напиши скрипт на питоне для разбора логов nginx", "suggest"),
+    ("какие главные новости в мире сегодня", "suggest"),
+    ("что такое чёрная дыра, коротко", {"chat", "suggest"}),
+]
+
+
+VOICE = "--voice" in sys.argv
+
+
+def verdict(expect, calls, suggest):
+    if isinstance(expect, set):
+        return any(verdict(e, calls, suggest) for e in expect)
+    if expect == "suggest":
+        return suggest and not calls
+    if expect == "chat":
+        return not calls and not suggest
+    left = list(calls)
+    for name, check in expect:
+        hit = next((c for c in left if c["name"] == name and check(c)), None)
+        if hit is None:
+            return False
+        left.remove(hit)
+    return not left and not suggest
+
+
+async def main():
+    calls = []
+
+    async def record(name, args):
+        try:
+            args = json.loads(args or "{}") if isinstance(args, str) else args
+        except ValueError:
+            args = {}
+        calls.append({"name": name, "args": args})
+        return Result(True, "ок")
+
+    server = LocalServer(port=8093)
+    brain = LocalBrain(server)
+    await server.ensure(config.load())
+    try:
+        async def nothing(_):
+            pass
+        await brain.answer("привет", False, nothing, nothing)          # прогрев: промпт и инструменты в кэш
+        ok, times, fails = 0, [], []
+        with patch.object(tools, "run", record):
+            for text, expect in CASES:
+                brain.reset()
+                calls.clear()
+                t = time.monotonic()
+                reply = await brain.answer(text, VOICE, nothing, nothing)
+                times.append(time.monotonic() - t)
+                # tools.run подменён, поэтому вызовы берём из записи (а suggest — из ответа)
+                good = verdict(expect, list(calls), reply.suggest)
+                ok += good
+                if not good:
+                    fails.append(f"  ✗ {text} → {calls or ''} {'suggest' if reply.suggest else ''} {reply.text[:60]!r}")
+        print(f"верно {ok}/{len(CASES)}, медиана {statistics.median(times):.2f} с, максимум {max(times):.2f} с")
+        print("\n".join(fails))
+    finally:
+        await server.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

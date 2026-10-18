@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Ставит ассистента glass: Python-окружение (Claude SDK, PyTorch для процессора, scipy),
-# модели (Whisper large-v3-turbo q5_0, Silero v5_ru, Qwen3.5-9B Q4_K_M — запасная),
+# модели (Whisper large-v3-turbo q5_0, Silero v5_ru, Gemma 4 E4B Q4_K_M — локальная, отвечает по умолчанию),
 # whisper.cpp с CUDA и службу systemd --user. Повторный запуск докачивает недостающее.
-#   ./assistant/setup.sh            всё
-#   ./assistant/setup.sh --no-local без запасной локальной модели (минус 5,7 ГБ)
+# Локальную модель запускает llama-server — пакет llama.cpp-cuda (AUR).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 A=${GLASS_ASSISTANT_DATA:-$HOME/.local/share/glass-assistant}
@@ -23,7 +22,8 @@ echo "== Python"
 echo "== Модели"
 get https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin "$A/models/whisper/ggml-large-v3-turbo-q5_0.bin"
 get https://models.silero.ai/models/tts/ru/v5_ru.pt "$A/models/tts/v5_ru.pt"
-[ "${1:-}" = "--no-local" ] || get https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf "$A/models/llm/Qwen3.5-9B-Q4_K_M.gguf"
+get https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf "$A/models/llm/gemma-4-E4B-it-Q4_K_M.gguf"
+command -v llama-server >/dev/null || echo "!! нет llama-server — поставь llama.cpp-cuda (AUR), иначе ответит только Claude"
 
 echo "== whisper.cpp (CUDA)"
 if [ ! -x "$A/src/whisper.cpp/build/bin/whisper-server" ]; then
