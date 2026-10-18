@@ -144,6 +144,13 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(started, [])
         self.assertEqual(self.ev("heard"), [])
 
+    async def test_say_preview_overrides_voice(self):
+        # «прослушать» в настройках — сразу новым голосом, не дожидаясь записи настроек в файл
+        self.d.voice = AsyncMock()
+        await self.d.command({"cmd": "say", "text": "Привет", "voice": "aidar", "pitch": "low", "rate": "fast"})
+        text, cfg = self.d.voice.say.await_args.args
+        self.assertEqual((text, cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"]), ("Привет", "aidar", "low", "fast"))
+
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
         await self.d.command({"cmd": "unload"})

@@ -36,12 +36,18 @@ class Voice:
         if self.task is None:
             self.task = asyncio.create_task(self._worker())
 
-    def _synth(self, text, speaker):
+    def _synth(self, text, voice):
+        speaker, pitch, rate = voice
+        if (pitch, rate) == ("medium", "medium"):
+            src = {"text": text}
+        else:                            # тон и темп — через SSML: тот же голос ниже/выше, медленнее/быстрее
+            safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            src = {"ssml_text": f'<speak><prosody pitch="{pitch}" rate="{rate}">{safe}</prosody></speak>'}
         try:
-            audio = self.model.apply_tts(text=text, speaker=speaker, sample_rate=RATE, put_accent=True, put_yo=True,
+            audio = self.model.apply_tts(**src, speaker=speaker, sample_rate=RATE, put_accent=True, put_yo=True,
                                          put_stress_homo=True, put_yo_homo=True)
         except TypeError:                # у разных версий моделей свой набор параметров
-            audio = self.model.apply_tts(text=text, speaker=speaker, sample_rate=RATE)
+            audio = self.model.apply_tts(**src, speaker=speaker, sample_rate=RATE)
         return audio.numpy().astype("float32").tobytes()
 
     async def say(self, text: str, cfg):
@@ -51,18 +57,18 @@ class Voice:
             return
         await self.ready(cfg)
         self.idle.clear()
-        await self.queue.put((self.gen, text, cfg["voice"]))
+        await self.queue.put((self.gen, text, (cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"])))
 
     async def _worker(self):
         pending = None                   # уже синтезированное следующее
         while True:
-            gen, text, speaker = pending or await self.queue.get()
+            gen, text, voice = pending or await self.queue.get()
             pending = None
             if gen != self.gen:
                 self._maybe_idle()
                 continue
             try:
-                pcm = await asyncio.to_thread(self._synth, text, speaker)
+                pcm = await asyncio.to_thread(self._synth, text, voice)
             except Exception as e:       # кривой текст не должен ронять озвучку
                 print("tts:", e, flush=True)
                 self._maybe_idle()

@@ -20,7 +20,9 @@ DEFAULTS = {
     "effort": "low",             # low | medium | high — глубина размышлений Claude (ниже — быстрее)
     "speak_voice": True,         # озвучивать ответы на голосовые вопросы
     "speak_typed": False,        # и на вопросы из лаунчера
-    "voice": "xenia",            # голос Silero: aidar, baya, kseniya, xenia, eugene
+    "voice": "xenia",            # голос Silero: женские xenia, kseniya, baya; мужские aidar, eugene
+    "voice_pitch": "medium",     # тон: low | medium | high
+    "voice_rate": "medium",      # темп: slow | medium | fast
     "wake": False,               # слушать слово-активатор
     "wake_words": ["обсидиан", "obsidian"],   # Whisper иногда пишет латиницей
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)

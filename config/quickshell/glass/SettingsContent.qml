@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 800 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 960 : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -777,15 +777,53 @@ Item {
                           Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
                           Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
                     MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: Assistant.say(I18n.t("Привет! Так я буду тебе отвечать.", "Hi! This is how I will answer you.")) }
+                                onClicked: voiceBox.preview({}) }
                 }
             }
-            TunerChoice {
+            // голос: 3 женских и 2 мужских Silero, у каждого — тон и темп; выбор сразу звучит
+            Column {
+                id: voiceBox
                 width: parent.width
-                options: [{ id: "xenia", t: "Ксения" }, { id: "kseniya", t: "Ксюша" }, { id: "baya", t: "Бая" },
-                          { id: "aidar", t: "Айдар" }, { id: "eugene", t: "Евгений" }]
-                current: Assistant.cfg.voice
-                onPicked: v => Assistant.cfg.voice = v
+                spacing: 6
+                function preview(o) {
+                    const c = Assistant.cfg;
+                    if (o.voice) c.voice = o.voice;
+                    if (o.pitch) c.voicePitch = o.pitch;
+                    if (o.rate) c.voiceRate = o.rate;
+                    Assistant.say(I18n.t("Привет! Так я буду тебе отвечать.", "Hi! This is how I will answer you."),
+                                  { voice: c.voice, pitch: c.voicePitch, rate: c.voiceRate });
+                }
+                Label { text: I18n.t("Женский", "Female"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+                TunerChoice {
+                    width: parent.width
+                    options: [{ id: "xenia", icon: "face_3", t: "Ксения" }, { id: "kseniya", icon: "face_3", t: "Ксюша" },
+                              { id: "baya", icon: "face_3", t: "Бая" }]
+                    current: Assistant.cfg.voice
+                    onPicked: v => voiceBox.preview({ voice: v })
+                }
+                Label { topPadding: 4; text: I18n.t("Мужской", "Male"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+                TunerChoice {
+                    width: parent.width
+                    options: [{ id: "aidar", icon: "face_6", t: "Айдар" }, { id: "eugene", icon: "face_6", t: "Евгений" }]
+                    current: Assistant.cfg.voice
+                    onPicked: v => voiceBox.preview({ voice: v })
+                }
+                Label { topPadding: 4; text: I18n.t("Тон", "Pitch"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+                TunerChoice {
+                    width: parent.width
+                    options: [{ id: "low", t: I18n.t("Ниже", "Lower") }, { id: "medium", t: I18n.t("Обычный", "Normal") },
+                              { id: "high", t: I18n.t("Выше", "Higher") }]
+                    current: Assistant.cfg.voicePitch
+                    onPicked: v => voiceBox.preview({ pitch: v })
+                }
+                Label { topPadding: 4; text: I18n.t("Темп", "Speed"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+                TunerChoice {
+                    width: parent.width
+                    options: [{ id: "slow", t: I18n.t("Медленнее", "Slower") }, { id: "medium", t: I18n.t("Обычный", "Normal") },
+                              { id: "fast", t: I18n.t("Быстрее", "Faster") }]
+                    current: Assistant.cfg.voiceRate
+                    onPicked: v => voiceBox.preview({ rate: v })
+                }
             }
             Repeater {
                 model: [

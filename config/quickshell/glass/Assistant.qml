@@ -101,7 +101,8 @@ Singleton {
     function warm() { if (sock.connected) send({ cmd: "warm" }); }
     function unload() { if (sock.connected) send({ cmd: "unload" }); }
     function stop() { send({ cmd: "stop" }); linger.stop(); }
-    function say(text) { send({ cmd: "say", text: text }); }
+    // o — голос для «прослушать»: { voice, pitch, rate } (иначе — из настроек)
+    function say(text, o) { send(Object.assign({ cmd: "say", text: text }, o || {})); }
     function reset() { send({ cmd: "reset" }); heard = ""; answer = ""; }
     function dismiss() { linger.stop(); }
 
@@ -120,6 +121,8 @@ Singleton {
             property string model: "claude-opus-5-5"
             property string effort: "low"
             property string voice: "xenia"
+            property string voicePitch: "medium"       // low | medium | high
+            property string voiceRate: "medium"        // slow | medium | fast
             property bool speakVoice: true
             property bool speakTyped: false
             property bool wake: false

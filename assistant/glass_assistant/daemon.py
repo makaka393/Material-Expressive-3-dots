@@ -278,7 +278,9 @@ class Daemon:
                 self.job.cancel()
             await self.set_state("idle")
         elif cmd == "say" and msg.get("text"):
-            await self.voice.say(msg["text"], cfg)
+            # «прослушать» в настройках присылает голос сам — файл настроек мог ещё не записаться
+            over = {k: msg[m] for k, m in (("voice", "voice"), ("voice_pitch", "pitch"), ("voice_rate", "rate")) if msg.get(m)}
+            await self.voice.say(msg["text"], {**cfg, **over})
         elif cmd == "reset":
             self.local_brain.reset()
             self.claude_brain.reset()
