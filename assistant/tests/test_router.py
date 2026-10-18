@@ -48,6 +48,15 @@ class DefaultWordsTest(unittest.TestCase):
         rest = strip_word("Обсидиан, морковь, почему небо синее?", config.DEFAULTS["wake_words"])
         self.assertEqual(route(rest, config.DEFAULTS), Route("claude", "почему небо синее?", False))
 
+    def test_quotes_stripped(self):
+        # Whisper иногда берёт фразу в «ёлочки»
+        self.assertEqual(strip_word("«Обсидиан, морковь, почему?»", ["обсидиан"]), "морковь, почему?")
+
+    def test_obsidian_latin(self):
+        # …и пишет «Obsidian» латиницей
+        rest = strip_word("Obsidian, выкруйте яркость на максимум.", config.DEFAULTS["wake_words"])
+        self.assertEqual(rest, "выкруйте яркость на максимум.")
+
     def test_obsidian_plain_is_local(self):
         rest = strip_word("Обсидиан, выкрути яркость на максимум", config.DEFAULTS["wake_words"])
         self.assertEqual(route(rest, config.DEFAULTS), Route("local", "выкрути яркость на максимум", False))

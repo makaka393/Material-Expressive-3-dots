@@ -121,6 +121,29 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
             await self.d.listen(config.load())
         self.d.local.warm.assert_called_once()
 
+    async def test_wake_name_only_chimes_and_listens(self):
+        started = []
+        self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
+        with patch("glass_assistant.daemon.chime.play") as play:
+            await self.d.on_wake("Обсидиан.", config.load())
+        play.assert_called_once_with("wake")
+        self.assertEqual(started, ["Daemon.listen"])
+
+    async def test_wake_with_command_asks(self):
+        started = []
+        self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
+        with patch("glass_assistant.daemon.chime.play") as play:
+            await self.d.on_wake("Обсидиан, следующий трек", config.load())
+        play.assert_not_called()
+        self.assertEqual(started, ["Daemon.ask"])
+
+    async def test_not_wake_ignored(self):
+        started = []
+        self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
+        await self.d.on_wake("купи хлеба", config.load())
+        self.assertEqual(started, [])
+        self.assertEqual(self.ev("heard"), [])
+
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
         await self.d.command({"cmd": "unload"})

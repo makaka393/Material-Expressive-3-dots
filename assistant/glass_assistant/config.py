@@ -22,7 +22,7 @@ DEFAULTS = {
     "speak_typed": False,        # и на вопросы из лаунчера
     "voice": "xenia",            # голос Silero: aidar, baya, kseniya, xenia, eugene
     "wake": False,               # слушать слово-активатор
-    "wake_words": ["обсидиан"],
+    "wake_words": ["обсидиан", "obsidian"],   # Whisper иногда пишет латиницей
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново

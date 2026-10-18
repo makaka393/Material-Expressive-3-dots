@@ -30,7 +30,7 @@ import time
 
 import httpx2
 
-from . import config
+from . import chime, config
 from .claude import UNAVAILABLE, ClaudeBrain
 from .local import LocalBrain, LocalServer
 from .router import route, strip_word
@@ -214,7 +214,9 @@ class Daemon:
         if not chunks or talking_for < 0.3:
             return
         import numpy as np
-        text = await self.whisper.transcribe(cfg, np.concatenate(chunks))
+        await self.on_wake(await self.whisper.transcribe(cfg, np.concatenate(chunks)), cfg)
+
+    async def on_wake(self, text, cfg):
         rest = after_wake(text, cfg["wake_words"])
         if rest is None:
             return
@@ -224,7 +226,8 @@ class Daemon:
         if rest:
             self.start(self.ask(rest, voice=True))                # «Обсидиан, какая погода?» — сразу вопрос
         else:
-            self.start(self.listen(cfg))                          # «Гласс!» — слушаем вопрос
+            chime.play("wake")                                    # «Обсидиан!» — звук и слушаем вопрос
+            self.start(self.listen(cfg))
 
     # ── обслуживание: выгрузить простаивающие модели
     async def reaper(self):

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 # что можно сказать перед словом: «эй, морковка …»; иначе «купи морковку» ушло бы в Claude
 FILLERS = {"эй", "окей", "ок", "слушай"}
+QUOTES = "«»\"„“”'"                  # Whisper иногда берёт фразу в кавычки
 
 
 @dataclass
@@ -28,7 +29,7 @@ def strip_word(text: str, words, lead=None) -> str | None:
         for i in range(min(3, len(t))):
             if t[i].startswith(stem):
                 tail = text.split(None, i + 1)
-                return tail[i + 1].lstrip(" ,.!?").rstrip() if len(tail) > i + 1 else ""
+                return tail[i + 1].lstrip(" ,.!?" + QUOTES).rstrip(" " + QUOTES) if len(tail) > i + 1 else ""
             if lead is not None and t[i] not in lead:
                 break
     return None
