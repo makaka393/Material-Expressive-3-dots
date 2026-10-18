@@ -58,3 +58,25 @@ async def clients() -> list:
 async def launch(*argv: str) -> str:
     """Запустить программу руками Hyprland, а не службы: процессы службы systemd убивает при её перезапуске."""
     return await hypr(f"hl.dsp.exec_cmd({lua_str(' '.join(shlex.quote(a) for a in argv))})")
+
+
+async def active() -> dict:
+    return json.loads(await sh("hyprctl", "activewindow", "-j") or "{}") or {}
+
+
+async def workspace_id():
+    return (json.loads(await sh("hyprctl", "activeworkspace", "-j") or "{}") or {}).get("id")
+
+
+async def focus(address: str) -> bool:
+    """Фокус на окно по адресу; True — оно и правда стало активным."""
+    await hypr(f'hl.dsp.focus({{ window = "address:{address}" }})')
+    return (await active()).get("address") == address
+
+
+async def on_window(address: str, lua: str):
+    """Диспетчер для конкретного окна. Ключ window = … Lua-диспетчеры Hyprland молча пропускают и бьют
+    по активному окну (так закрылся браузер пользователя), поэтому: фокус, проверка, потом действие."""
+    if not await focus(address):
+        raise RuntimeError("не получилось переключиться на окно")
+    await hypr(lua)

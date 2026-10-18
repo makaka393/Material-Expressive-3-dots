@@ -30,11 +30,18 @@ class AppsTest(unittest.IsolatedAsyncioTestCase):
             (d / name).write_text("[Desktop Entry]\nType=Application\n" + body)
         self.clients = []
         self.calls = []
+        self.active = None
 
         async def sh(*argv, timeout=5):
             self.calls.append(argv)
             if argv[:3] == ("hyprctl", "clients", "-j"):
                 return json.dumps(self.clients)
+            if argv[:3] == ("hyprctl", "activewindow", "-j"):
+                return json.dumps({"address": self.active} if self.active else {})
+            if argv[:3] == ("hyprctl", "activeworkspace", "-j"):
+                return json.dumps({"id": 1})
+            if argv[:2] == ("hyprctl", "dispatch") and 'window = "address:' in argv[2]:
+                self.active = argv[2].split("address:")[1].split('"')[0]
             if argv[:3] == ("xdg-settings", "get", "default-web-browser"):
                 return "zen.desktop"
             return "ok"
@@ -86,8 +93,9 @@ class AppsTest(unittest.IsolatedAsyncioTestCase):
                         {"address": "0x2", "class": "kitty", "title": "~", "workspace": {"id": 3}},
                         {"address": "0x3", "class": "discord", "title": "Discord popout", "workspace": {"id": 2}}]
         r = await tools.run("close_app", {"name": "дискорд"})
-        self.assertEqual(self.dispatched(), ['hl.dsp.window.close({ window = "address:0x1" })',
-                                             'hl.dsp.window.close({ window = "address:0x3" })'])
+        self.assertEqual(self.dispatched(), ['hl.dsp.focus({ window = "address:0x1" })', "hl.dsp.window.close()",
+                                             'hl.dsp.focus({ window = "address:0x3" })', "hl.dsp.window.close()",
+                                             "hl.dsp.focus({ workspace = 1 })"])
         self.assertEqual(r, Result(True, "Закрываю Discord"))
 
     async def test_close_app_without_windows(self):

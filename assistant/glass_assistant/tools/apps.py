@@ -126,8 +126,13 @@ async def close_app(args):
     wins = _windows(e, await base.clients())
     if not wins:
         return Result(False, f"Окна «{e.name}» нет", f"Окна «{e.name}» нет.")
-    for w in wins:
-        await base.hypr(f'hl.dsp.window.close({{ window = "address:{w["address"]}" }})')
+    here = await base.workspace_id()
+    try:
+        for w in wins:
+            await base.on_window(w["address"], "hl.dsp.window.close()")
+    finally:
+        if here is not None:
+            await base.hypr(f"hl.dsp.focus({{ workspace = {here} }})")       # остаться на своём столе
     return Result(True, f"Закрываю {e.name}")
 
 
