@@ -1,31 +1,36 @@
 """Голос ассистента: Silero TTS (русский, на процессоре) и воспроизведение через PipeWire (pw-play).
 
-Ответ озвучивается по предложениям: первое уже звучит, пока модель дописывает остальные,
-следующее синтезируется, пока играет текущее.
+Ответ озвучивается по предложениям: первое уже звучит, пока модель дописывает остальные, следующее
+синтезируется, пока играет текущее (синтез и проигрывание — две задачи), и всё — в один pw-play, без
+запуска проигрывателя перед каждой фразой. Модель грузится и разогревается при запуске службы.
 """
 import asyncio
+import os
 import re
 
 from . import config
 from .numbers import spoken
 
 RATE = 48000
+LINGER = 0.3          # с — ждём следующую фразу, прежде чем закрыть проигрыватель
 
 
 class Voice:
-    def __init__(self):
+    def __init__(self, spawn=None):
         self.model = None
-        self.play = None                 # текущий pw-play
-        self.queue = asyncio.Queue()
-        self.gen = 0                     # растёт при stop(): всё, что было в очереди, уже не нужно
-        self.speaking = asyncio.Event()  # что-то звучит или ждёт очереди
+        self.spawn = spawn or self._spawn
+        self.texts = asyncio.Queue()     # (поколение, текст, голос) — ждут синтеза
+        self.pcms = asyncio.Queue()      # (поколение, звук) — ждут проигрывателя
+        self.synthesizing = False
+        self.proc = None                 # pw-play текущего ответа
+        self.gen = 0                     # растёт при stop(): всё, что было в очередях, уже не нужно
         self.idle = asyncio.Event()
         self.idle.set()
-        self.task = None
+        self.tasks = None
 
     def _load(self, path):
         import torch
-        torch.set_num_threads(4)
+        torch.set_num_threads(max(1, (os.cpu_count() or 8) // 2))      # 8 потоков — на треть быстрее 4
         model = torch.package.PackageImporter(path).load_pickle("tts_models", "model")
         model.to(torch.device("cpu"))
         return model
@@ -33,8 +38,17 @@ class Voice:
     async def ready(self, cfg):
         if self.model is None:
             self.model = await asyncio.to_thread(self._load, cfg["tts_model"])
-        if self.task is None:
-            self.task = asyncio.create_task(self._worker())
+            try:                         # первый синтез после загрузки в разы медленнее — сделать его сразу
+                await asyncio.to_thread(self._synth, "Привет.", (cfg["voice"], "medium", "medium"))
+            except Exception as e:
+                print("tts: разогрев:", e, flush=True)
+        if self.tasks is None:
+            self.tasks = [asyncio.create_task(self._synth_loop()), asyncio.create_task(self._play_loop())]
+
+    async def _spawn(self):
+        return await asyncio.create_subprocess_exec(
+            "pw-play", "--raw", "--format", "f32", "--rate", str(RATE), "--channels", "1",
+            "--media-role", "Assistant", "-", stdin=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
 
     def _synth(self, text, voice):
         speaker, pitch, rate = voice
@@ -57,63 +71,92 @@ class Voice:
             return
         await self.ready(cfg)
         self.idle.clear()
-        await self.queue.put((self.gen, text, (cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"])))
+        await self.texts.put((self.gen, text, (cfg["voice"], cfg["voice_pitch"], cfg["voice_rate"])))
 
-    async def _worker(self):
-        pending = None                   # уже синтезированное следующее
+    def _more(self):
+        return not self.texts.empty() or self.synthesizing or not self.pcms.empty()
+
+    async def _synth_loop(self):
         while True:
-            gen, text, voice = pending or await self.queue.get()
-            pending = None
-            if gen != self.gen:
+            gen, text, voice = await self.texts.get()
+            self.synthesizing = True
+            pcm = None
+            if gen == self.gen:
+                try:
+                    pcm = await asyncio.to_thread(self._synth, text, voice)
+                except Exception as e:   # кривой текст не должен ронять озвучку
+                    print("tts:", e, flush=True)
+            self.synthesizing = False
+            if pcm is not None and gen == self.gen:
+                await self.pcms.put((gen, pcm))
+            else:
                 self._maybe_idle()
-                continue
-            try:
-                pcm = await asyncio.to_thread(self._synth, text, voice)
-            except Exception as e:       # кривой текст не должен ронять озвучку
-                print("tts:", e, flush=True)
-                self._maybe_idle()
-                continue
-            if gen != self.gen:
-                self._maybe_idle()
-                continue
-            self.play = await asyncio.create_subprocess_exec(
-                "pw-play", "--raw", "--format", "f32", "--rate", str(RATE), "--channels", "1",
-                "--media-role", "Assistant", "-", stdin=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-            try:
-                self.play.stdin.write(pcm)
-                await self.play.stdin.drain()
-                self.play.stdin.close()
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            await self.play.wait()
-            self.play = None
+
+    async def _play_loop(self):
+        while True:
+            gen, pcm = await self.pcms.get()
+            proc = None
+            while True:                  # один ответ — один pw-play
+                if gen == self.gen:
+                    if proc is None or proc is not self.proc:     # первый кусок или после stop()
+                        proc = self.proc = await self.spawn()
+                    try:
+                        proc.stdin.write(pcm)
+                        await proc.stdin.drain()
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                try:                     # дальше ещё будет — ждём сколько надо; иначе чуть-чуть
+                    gen, pcm = await asyncio.wait_for(self.pcms.get(), None if self._more() else LINGER)
+                except asyncio.TimeoutError:
+                    break
+            if proc is not None and proc is self.proc:
+                try:
+                    proc.stdin.close()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                await proc.wait()        # доиграть то, что уже в буфере
+                if proc is self.proc:
+                    self.proc = None
             self._maybe_idle()
 
     def _maybe_idle(self):
-        if self.queue.empty() and self.play is None:
+        if not self._more() and self.proc is None:
             self.idle.set()
 
     def stop(self):
-        """Замолчать сразу и забыть очередь."""
+        """Замолчать сразу и забыть очереди."""
         self.gen += 1
-        while not self.queue.empty():
-            self.queue.get_nowait()
-        if self.play and self.play.returncode is None:
-            self.play.terminate()
+        for q in (self.texts, self.pcms):
+            while not q.empty():
+                q.get_nowait()
+        if self.proc and self.proc.returncode is None:
+            self.proc.terminate()
+        self.proc = None
         self.idle.set()
 
 
 SENT_END = re.compile(r"(?<=[.!?…])\s+|\n+")
 
 
+FIRST_CUT = re.compile(r"[,;:](?=\s)|\s[—–](?=\s)")
+
+
 class Sentences:
-    """Режет поток текста на предложения для озвучки."""
+    """Режет поток текста на предложения для озвучки. Первую реплику — уже по запятой, если до неё
+    набралось ≥ 20 знаков: звук пойдёт раньше, чем модель допишет длинное предложение."""
 
     def __init__(self):
         self.buf = ""
+        self.first = True
 
     def feed(self, chunk: str):
         self.buf += chunk
+        if self.first and not SENT_END.search(self.buf):
+            m = next((m for m in FIRST_CUT.finditer(self.buf) if m.start() >= 20), None)
+            if not m:
+                return []
+            head, self.buf, self.first = self.buf[:m.end()].strip(), self.buf[m.end():].lstrip(), False
+            return [head]
         out, start, acc = [], 0, ""
         for m in SENT_END.finditer(self.buf):
             piece = self.buf[start:m.start()].strip()
@@ -122,6 +165,7 @@ class Sentences:
             if len(acc) >= 12:                   # «Да.» склеиваем со следующим — меньше пауз
                 out.append(acc)
                 acc = ""
+                self.first = False
         rest = self.buf[start:]
         self.buf = f"{acc} {rest}" if acc else rest
         return out

@@ -253,6 +253,22 @@ class DialogTest(unittest.IsolatedAsyncioTestCase):
 
 
 class ServeTest(unittest.IsolatedAsyncioTestCase):
+    async def test_voice_preloaded_on_start(self):
+        # модель голоса грузится при запуске службы, а не при первом ответе (1,5 с + разогрев)
+        with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
+            d = Daemon()
+            d.local = AsyncMock()
+            d.voice.ready = AsyncMock()
+            serving = asyncio.create_task(d.serve())
+            for _ in range(100):
+                if d.voice.ready.await_count:
+                    break
+                await asyncio.sleep(0.02)
+            d.stopping.set()
+            await asyncio.wait_for(serving, 3)
+        d.voice.ready.assert_awaited()
+
     async def test_stops_with_client_connected(self):
         # оболочка держит сокет открытым всегда; служба всё равно должна выйти по SIGTERM сразу,
         # а не висеть до SIGKILL от systemd через полторы минуты
@@ -260,6 +276,7 @@ class ServeTest(unittest.IsolatedAsyncioTestCase):
                 patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
             d = Daemon()
             d.local = AsyncMock()
+            d.voice.ready = AsyncMock()
             serving = asyncio.create_task(d.serve())
             for _ in range(100):
                 if (Path(tmp) / "a.sock").exists():
@@ -280,6 +297,7 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
                 patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
             d = Daemon()
             d.local = AsyncMock()
+            d.voice.ready = AsyncMock()
             serving = asyncio.create_task(d.serve())
             for _ in range(100):
                 if (Path(tmp) / "a.sock").exists():

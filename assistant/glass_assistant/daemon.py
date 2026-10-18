@@ -324,7 +324,8 @@ class Daemon:
             pass
         server = await asyncio.start_unix_server(self.client, path=str(path))
         os.chmod(path, 0o600)
-        tasks = [asyncio.create_task(self.reaper()), asyncio.create_task(self.wake_loop())]
+        tasks = [asyncio.create_task(self.reaper()), asyncio.create_task(self.wake_loop()),
+                 asyncio.create_task(self.voice.ready(config.load()))]       # голос — заранее, не при первом ответе
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, self.stopping.set)
