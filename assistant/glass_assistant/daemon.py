@@ -18,12 +18,12 @@
 import asyncio
 import json
 import os
-import re
 import signal
 import time
 
 from . import config
 from .llm import Brain
+from .router import strip_word
 from .stt import Mic, Vad, Whisper, record_utterance, FRAME, RATE
 from .tts import Sentences, Voice
 
@@ -245,13 +245,4 @@ class Daemon:
 
 def after_wake(text: str, words) -> str | None:
     """Если фраза начинается с имени ассистента — остаток фразы ("" — только имя), иначе None."""
-    t = re.sub(r"[^\w\s-]", " ", text.lower()).split()
-    if not t:
-        return None
-    for w in words:
-        w = w.lower()
-        for i in range(min(3, len(t))):              # «эй, гласс …», «окей гласс …»
-            if t[i].startswith(w[:max(4, len(w) - 1)]):
-                tail = text.split(None, i + 1)
-                return tail[i + 1].strip(" ,.!?") if len(tail) > i + 1 else ""
-    return None
+    return strip_word(text, words)              # «эй, гласс …», «окей гласс …»
