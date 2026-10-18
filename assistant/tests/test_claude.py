@@ -124,6 +124,17 @@ class ClaudeTest(unittest.IsolatedAsyncioTestCase):
         await self.ask("привет")
         self.assertEqual(self.client.calls[0]["tools"], tools.anthropic_tools())
 
+    async def test_memory_in_system(self):
+        import tempfile
+        from pathlib import Path
+        from glass_assistant import memory
+        m = memory.Memory(Path(tempfile.mkdtemp()) / "m.json")
+        m.add("Пользователя зовут Рома")
+        self.use([(["а"], [text_block("а")], "end_turn")])
+        with patch.object(memory, "store", m):
+            await self.ask("как меня зовут")
+        self.assertIn("- Пользователя зовут Рома", self.client.calls[0]["system"])
+
     async def test_history_append_only(self):
         # история только дописывается: следующий запрос начинается ровно с предыдущего
         self.use([(["а"], [text_block("а")], "end_turn"), (["б"], [text_block("б")], "end_turn")])

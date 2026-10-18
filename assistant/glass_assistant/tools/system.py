@@ -45,8 +45,8 @@ async def do_not_disturb(args):
     return Result(True, "«Не беспокоить» включено" if args["on"] else "«Не беспокоить» выключено")
 
 
-register(Tool("volume", "Громкость системы. level — точное значение 0-100, change — на сколько изменить (+/-), "
-              "mute — выключить/включить звук", {"level": INT, "change": INT, "mute": BOOL}, [], volume))
+register(Tool("volume", "Громкость системы. level — точное значение 0-100, change — на сколько изменить (+/-; "
+              "«громче»/«потише» без числа — ±10, не переспрашивай), mute — выключить/включить звук", {"level": INT, "change": INT, "mute": BOOL}, [], volume))
 register(Tool("brightness", "Яркость экрана. level 0-100 или change +/-", {"level": INT, "change": INT}, [], brightness))
 register(Tool("night_light", "Ночной режим (тёплый экран)", {"on": BOOL}, ["on"], night_light))
 register(Tool("do_not_disturb", "Режим «не беспокоить»", {"on": BOOL}, ["on"], do_not_disturb))

@@ -8,11 +8,14 @@
 import asyncio
 import json
 import statistics
+import tempfile
+from pathlib import Path
 import sys
 import time
 from unittest.mock import patch
 
-from glass_assistant import config, tools
+from glass_assistant import config, memory, tools
+from glass_assistant.memory import Memory
 from glass_assistant.local import LocalBrain, LocalServer
 from glass_assistant.tools.base import Result
 
@@ -83,6 +86,12 @@ CASES = [
     ("поставь песню numb", [("play_music", lambda c: "numb" in low(arg(c, "query")))]),
     ("вруби что-нибудь из кино", [("play_music", lambda c: "кино" in low(arg(c, "query")))]),
     ("включи другую песню", [("media", lambda c: arg(c, "action") == "next")]),
+    # память: запомнить, забыть, вспомнить (во временной памяти уже есть «Пользователя зовут Рома»)
+    ("запомни, что я люблю linkin park", [("remember", lambda c: "linkin" in low(arg(c, "fact")))]),
+    ("запомни что моя машина ауди", [("remember", lambda c: "ауди" in low(arg(c, "fact")) or "audi" in low(arg(c, "fact")))]),
+    ("забудь про мою машину", [("forget", lambda c: "машин" in low(arg(c, "what")))]),
+    ("как меня зовут", "chat:ром"),
+    ("что ты обо мне знаешь", "chat:ром"),
     # инструментов ещё нет — сказать «не умею», а не хвататься за чужой
     ("выключи компьютер", "chat"),
     ("перезагрузи комп", "chat"),
@@ -102,8 +111,9 @@ VOICE = "--voice" in sys.argv
 def verdict(expect, calls, text):
     if isinstance(expect, tuple):                    # несколько верных вариантов
         return any(verdict(e, calls, text) for e in expect)
-    if expect == "chat":
-        return not calls and bool(text.strip()) and "claude" not in text.lower()
+    if expect.startswith("chat") if isinstance(expect, str) else False:
+        needle = expect[5:]                          # «chat:ром» — ответ словами, и в нём есть «ром»
+        return not calls and bool(text.strip()) and "claude" not in text.lower() and needle in text.lower()
     left = list(calls)
     for name, check in expect:
         hit = next((c for c in left if c["name"] == name and check(c)), None)
@@ -124,6 +134,10 @@ async def main():
         calls.append({"name": name, "args": args})
         return Result(True, "ок")
 
+    tmp = tempfile.TemporaryDirectory()
+    mem = Memory(Path(tmp.name) / "memory.json")
+    mem.add("Пользователя зовут Рома")
+    patch.object(memory, "store", mem).start()
     server = LocalServer(port=8093)
     brain = LocalBrain(server)
     await server.ensure(config.load())

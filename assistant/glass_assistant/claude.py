@@ -9,7 +9,7 @@ from datetime import datetime
 
 import anthropic
 
-from . import config, tools
+from . import config, memory, tools
 from .local import Reply
 
 SYSTEM = """Ты — личный ассистент в оболочке glass на компьютере пользователя (Arch Linux, Hyprland, \
@@ -100,7 +100,7 @@ class ClaudeBrain:
                 fallbacks="default",
                 output_config={"effort": cfg["effort"]},
                 cache_control={"type": "ephemeral"},
-                system=SYSTEM,
+                system=SYSTEM + memory.store.prompt(),
                 tools=tools.anthropic_tools(),
                 messages=msgs,
             ) as stream:

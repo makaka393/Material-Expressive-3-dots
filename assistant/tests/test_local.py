@@ -196,6 +196,15 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         await self.ask("громче", voice=True)
         self.assertEqual(self.llama.bodies[0]["messages"], self.llama.bodies[1]["messages"])
 
+    async def test_memory_in_system_prompt(self):
+        from glass_assistant import memory
+        m = memory.Memory(Path(tempfile.mkdtemp()) / "m.json")
+        m.add("Пользователя зовут Рома")
+        self.llama.replies = [[text("Рома")]]
+        with patch.object(memory, "store", m):
+            await self.ask("как меня зовут")
+        self.assertIn("- Пользователя зовут Рома", self.llama.bodies[0]["messages"][0]["content"])
+
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)
         self.llama.replies = [[text("а")], [text("б")]]
@@ -218,6 +227,12 @@ class GateTest(unittest.TestCase):
     def test_ascii_only_short_text_is_pseudo_call(self):
         for chunks in (["power off"], ["Suggest Claude"], ["suggest_claude{}"], ['media{"act', 'ion": "next"}']):
             self.assertEqual(self.run_gate(chunks), ("", True), chunks)
+
+    def test_memory_claims_are_claims(self):
+        # «Я забыл информацию о машине.» без вызова forget — пустое обещание
+        for t in ("Я забыл информацию о твоей машине.", "Запомнил, тебя зовут Рома.", "Хорошо, запоминаю.",
+                  "Конечно, делаю потише.", "Сделаю потише. На сколько уменьшить громкость?", "Сейчас включу."):
+            self.assertEqual(self.run_gate([t]), ("", True), t)
 
     def test_stamp_stripped(self):
         self.assertEqual(self.run_gate(["[2026-10-18 14:05, воскресенье]\n", "Привет!"]), ("Привет!", False))
