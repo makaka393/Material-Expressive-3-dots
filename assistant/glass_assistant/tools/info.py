@@ -98,8 +98,15 @@ async def _headphones():
             if pct:
                 model = re.search(r"model:\s*(.+)", d)
                 return f"{model.group(1).strip() if model else 'Наушники'}: заряд {pct.group(1)}."
-    for mac in re.findall(r"Device (\S+)", await base.sh("bluetoothctl", "devices", "Connected", timeout=3)):
-        d = await base.sh("bluetoothctl", "info", mac, timeout=3)
+    try:                                         # bluetoothctl умеет зависать — тогда «наушников нет»
+        macs = re.findall(r"Device (\S+)", await base.sh("bluetoothctl", "devices", "Connected", timeout=3))
+    except RuntimeError:
+        return None
+    for mac in macs:
+        try:
+            d = await base.sh("bluetoothctl", "info", mac, timeout=3)
+        except RuntimeError:
+            continue
         pct = re.search(r"Battery Percentage:.*\((\d+)\)", d)
         if pct:
             name = re.search(r"Name:\s*(.+)", d)

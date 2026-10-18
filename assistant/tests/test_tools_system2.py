@@ -123,6 +123,16 @@ class InfoTest(Calls):
         r = await tools.run("system_info", {"kind": "headphones"})
         self.assertEqual(r.say, "WH-1000XM4: заряд 70%.")
 
+    async def test_bluetoothctl_hangs(self):
+        # bluetoothctl умеет зависать — это «наушников нет», а не ошибка
+        self.out["upower"] = ""
+
+        def hang(argv):
+            raise RuntimeError("bluetoothctl не ответил")
+        self.out["bluetoothctl"] = hang
+        r = await tools.run("system_info", {"kind": "headphones"})
+        self.assertEqual(r, Result(False, "Не вижу наушников с батареей", "Не вижу наушников с батареей."))
+
     async def test_no_headphones(self):
         self.out["upower"] = "/org/freedesktop/UPower/devices/DisplayDevice\n"
         r = await tools.run("system_info", {"kind": "headphones"})

@@ -136,6 +136,7 @@ class Daemon:
             answer = await power.confirm(text)
             if answer is not None:
                 await self.emit("route", brain="local", text=text)
+                await self.set_state("thinking")
                 await self.emit("done", text=answer.show, backend="local", actions=[])
                 if speak:
                     await self.voice.say(answer.say, cfg)

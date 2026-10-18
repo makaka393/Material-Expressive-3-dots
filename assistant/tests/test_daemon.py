@@ -285,6 +285,8 @@ class PowerFlowTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.d.local_brain.asked, [])
         self.assertIn(("systemctl", "poweroff"), self.calls)
         self.assertEqual([kw["text"] for e, kw in self.events if e == "done"], ["Выключаю"])
+        # как у любого ответа: «думаю» → ответ → «свободен» — иначе клиент ждёт конца вечно
+        self.assertIn(("state", "thinking"), [(e, kw.get("state")) for e, kw in self.events])
 
     async def test_question_by_voice_listens_for_answer(self):
         # «выключи компьютер» голосом → «Выключить? Скажи да» → слушаем ответ, даже если «разговор» выключен
