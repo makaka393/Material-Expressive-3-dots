@@ -6,7 +6,7 @@ import Quickshell.Services.Notifications
 
 // Уведомления: свой сервер (вместо mako/dunst/swaync). Новое уведомление выезжает
 // из центрального острова, история — в шторке справа. «Не беспокоить» — плитка в шторке.
-//   qs ipc -c glass call notifs dnd | clear
+//   qs ipc -c glass call notifs dnd | set true|false | clear
 Singleton {
     id: root
 
@@ -91,6 +91,7 @@ Singleton {
     IpcHandler {
         target: "notifs"
         function dnd(): void { Config.dnd = !Config.dnd; }
+        function set(on: bool): void { Config.dnd = on; }
         function clear(): void { root.clearAll(); }
     }
 }

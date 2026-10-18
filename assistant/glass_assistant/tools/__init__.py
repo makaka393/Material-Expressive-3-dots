@@ -67,3 +67,6 @@ async def run(name: str, args) -> Result:
         return Result(False, "Не получилось: не успел")
     except Exception as e:
         return Result(False, f"Не получилось: {e}")
+
+
+from . import media, system  # noqa: E402,F401 — регистрируют свои инструменты

@@ -18,6 +18,13 @@ Singleton {
         else if (backend === "gamma") { Config.brightness = value; Night.setGamma(value); }
     }
 
+    // для ассистента: qs ipc -c glass call brightness set 60 | change -20 — печатает, что вышло
+    IpcHandler {
+        target: "brightness"
+        function set(v: int): int { root.set(v); return root.value; }
+        function change(d: int): int { root.set(root.value + d); return root.value; }
+    }
+
     // монитор с DDC? ответ вида «VCP 10 C 60 100»
     Process {
         id: detect
