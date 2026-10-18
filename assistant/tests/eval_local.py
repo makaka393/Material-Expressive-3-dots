@@ -17,6 +17,10 @@ from glass_assistant.local import LocalBrain, LocalServer
 from glass_assistant.tools.base import Result
 
 
+def low(v):
+    return str(v or "").lower()
+
+
 def arg(c, k):
     return c["args"].get(k)
 
@@ -57,8 +61,28 @@ CASES = [
     ("я устал", "chat"),
     ("как выключить компьютер в линуксе", "chat"),
     ("не выключай компьютер, я ещё работаю", "chat"),
-    # инструментов ещё нет (этапы 2–3) — сказать «не умею», а не хвататься за чужой
-    ("открой браузер", "chat"),
+    # приложения, сайты, окна, вкладки, музыка
+    ("открой браузер", [("open_app", lambda c: any(w in low(arg(c, "name")) for w in ("браузер", "browser", "zen")))]),
+    ("открой телегу", [("open_app", lambda c: "телег" in low(arg(c, "name")) or "telegram" in low(arg(c, "name")))]),
+    ("запусти стим", [("open_app", lambda c: "стим" in low(arg(c, "name")) or "steam" in low(arg(c, "name")))]),
+    ("закрой дискорд", [("close_app", lambda c: "дискорд" in low(arg(c, "name")) or "discord" in low(arg(c, "name")))]),
+    ("найди на ютубе как сделать пиццу", [("web_search", lambda c: arg(c, "site") == "youtube" and "пицц" in low(arg(c, "query")))]),
+    ("загугли курс доллара", [("web_search", lambda c: "доллар" in low(arg(c, "query")))]),
+    ("открой гитхаб", [("open_url", lambda c: "github" in low(arg(c, "url")))]),
+    ("следующая вкладка", [("browser_tab", lambda c: arg(c, "action") == "next")]),
+    ("закрой вкладку", [("browser_tab", lambda c: arg(c, "action") == "close")]),
+    ("открой новую вкладку", [("browser_tab", lambda c: arg(c, "action") == "new")]),
+    ("переключись на третью вкладку", [("browser_tab", lambda c: arg(c, "action") == "number" and arg(c, "number") == 3)]),
+    ("перейди на второй рабочий стол", [("workspace", lambda c: arg(c, "number") == 2)]),
+    ("следующий рабочий стол", [("workspace", lambda c: arg(c, "direction") == "next")]),
+    ("перекинь окно на пятый", [("move_window", lambda c: arg(c, "workspace") == 5)]),
+    ("закрой это окно", [("window", lambda c: arg(c, "action") == "close")]),
+    ("разверни окно на весь экран", [("window", lambda c: arg(c, "action") == "fullscreen")]),
+    ("включи linkin park", [("play_music", lambda c: "linkin" in low(arg(c, "query")))]),
+    ("поставь песню numb", [("play_music", lambda c: "numb" in low(arg(c, "query")))]),
+    ("вруби что-нибудь из кино", [("play_music", lambda c: "кино" in low(arg(c, "query")))]),
+    ("включи другую песню", [("media", lambda c: arg(c, "action") == "next")]),
+    # инструментов ещё нет — сказать «не умею», а не хвататься за чужой
     ("выключи компьютер", "chat"),
     ("перезагрузи комп", "chat"),
     ("заблокируй экран", "chat"),

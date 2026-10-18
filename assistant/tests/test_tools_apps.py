@@ -83,6 +83,12 @@ class AppsTest(unittest.IsolatedAsyncioTestCase):
         base.qs.assert_awaited_once_with("settings", "open")
         self.assertTrue(r.ok)
 
+    async def test_open_known_site_when_no_app(self):
+        # «открой гитхаб» модель отдаёт в open_app — приложения нет, а сайт известный
+        r = await tools.run("open_app", {"name": "гитхаб"})
+        self.assertEqual(self.dispatched(), ['hl.dsp.exec_cmd("xdg-open https://github.com")'])
+        self.assertEqual(r, Result(True, "Открываю github.com"))
+
     async def test_open_unknown(self):
         r = await tools.run("open_app", {"name": "фотошоп"})
         self.assertFalse(r.ok)

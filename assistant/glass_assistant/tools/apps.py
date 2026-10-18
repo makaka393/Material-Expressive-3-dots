@@ -24,6 +24,11 @@ LAT = str.maketrans({"а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е"
                      "и": "i", "й": "j", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r",
                      "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c", "ч": "ch", "ш": "sh", "щ": "sch",
                      "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya"})
+# приложения нет, а сайт известный: «открой гитхаб» модель отдаёт в open_app
+SITE_NAMES = {"github": "github.com", "гитхаб": "github.com", "youtube": "youtube.com", "ютуб": "youtube.com",
+              "вк": "vk.com", "вконтакте": "vk.com", "twitch": "twitch.tv", "твич": "twitch.tv",
+              "reddit": "reddit.com", "реддит": "reddit.com", "кинопоиск": "kinopoisk.ru", "gmail": "mail.google.com",
+              "почта": "mail.google.com", "chatgpt": "chatgpt.com", "чатгпт": "chatgpt.com"}
 SITES = {"google": "https://www.google.com/search?q=", "youtube": "https://www.youtube.com/results?search_query=",
          "wikipedia": "https://ru.wikipedia.org/w/index.php?search=", "maps": "https://www.google.com/maps/search/",
          "github": "https://github.com/search?q="}
@@ -109,6 +114,10 @@ async def open_app(args):
         e = next((x for x in entries() if x.id == default.removesuffix(".desktop")), None)
     e = e or find(name)
     if e is None:
+        site = SITE_NAMES.get(name.lower())
+        if site:
+            await base.launch("xdg-open", "https://" + site)
+            return Result(True, f"Открываю {site}")
         return Result(False, f"Не нашёл приложение «{name}»", f"Не нашёл приложение «{name}».")
     wins = _windows(e, await base.clients())
     if wins:
@@ -159,5 +168,6 @@ register(Tool("open_app", "Открыть приложение (браузер, 
               "настройки…). Уже открыто — покажет его окно", {"name": STR}, ["name"], open_app))
 register(Tool("close_app", "Закрыть приложение по названию (все его окна)", {"name": STR}, ["name"], close_app))
 register(Tool("open_url", "Открыть сайт в браузере", {"url": STR}, ["url"], open_url))
-register(Tool("web_search", "Найти в интернете и открыть результаты в браузере",
+register(Tool("web_search", "Поиск в интернете с открытием в браузере — только если явно просят найти, "
+              "загуглить, поискать. На вопросы отвечай сам",
               {"query": STR, "site": {"type": "string", "enum": list(SITES)}}, ["query"], web_search))

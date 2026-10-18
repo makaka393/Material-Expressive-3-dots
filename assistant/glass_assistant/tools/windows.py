@@ -78,8 +78,8 @@ async def browser_tab(args):
 
 INT = {"type": "integer"}
 STR = {"type": "string"}
-register(Tool("window", "Действие с окном: закрыть, во весь экран, сделать плавающим, закрепить. app — если не "
-              "активное, а окно приложения", {"action": {"type": "string", "enum": list(ACTIONS)}, "app": STR},
+register(Tool("window", "Действие с окном: закрыть, во весь экран, сделать плавающим, закрепить. По умолчанию — "
+              "активное окно («это окно»), не переспрашивай; app — только если названо приложение", {"action": {"type": "string", "enum": list(ACTIONS)}, "app": STR},
               ["action"], window))
 register(Tool("move_window", "Перенести окно (активное или приложения app) на рабочий стол", {"workspace": INT, "app": STR},
               ["workspace"], move_window))
