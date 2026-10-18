@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? 1180 : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? asPage.wantHeight : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -119,23 +119,40 @@ Item {
         MultiEffect { anchors.fill: parent; source: composed; maskEnabled: true; maskSource: cardMask; maskThresholdMin: 0.5; maskSpreadAtMin: 1 }
     }
 
-    // ── большой ползунок M3 Expressive
+    // ── большой ползунок M3 Expressive. origin — откуда заливка: с края (по умолчанию) или от середины
+    // (тон: мягче ← обычный → твёрже); step — шаг; released — отпустили (прослушать голос)
     component BigSlider: Rectangle {
         id: sl
         property real from: 0
         property real to: 1
         property real value: 0.5
+        property real origin: from
+        property real step: 0
         property string icon: ""
         property string text: ""
         signal moved(real v)
+        signal released()
         height: 48; radius: 24
         color: Theme.glassChip
         readonly property real frac: (value - from) / (to - from)
+        readonly property bool mid: origin !== from
+        // от середины: края заливки — центры кружков у начала и у значения
+        readonly property real po: (width - height) * (origin - from) / (to - from)
+        readonly property real pv: (width - height) * frac
         Rectangle {
+            x: sl.mid ? Math.min(sl.po, sl.pv) : 0
             height: parent.height; radius: 24
-            width: Math.max(parent.height, parent.width * sl.frac)
+            width: sl.mid ? Math.abs(sl.pv - sl.po) + sl.height : Math.max(parent.height, parent.width * sl.frac)
             color: Theme.primary
             Behavior on width { enabled: !slMouse.pressed; Anim { kind: "fast" } }
+            Behavior on x { enabled: !slMouse.pressed; Anim { kind: "fast" } }
+        }
+        // метка «обычный» у начала заливки от середины
+        Rectangle {
+            visible: sl.mid
+            x: sl.po + sl.height / 2 - width / 2; anchors.verticalCenter: parent.verticalCenter
+            width: 4; height: 4; radius: 2
+            color: Theme.primaryFg
         }
         Icon { anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
             name: sl.icon; size: 22; fill: 1; color: Theme.primaryFg }
@@ -145,10 +162,48 @@ Item {
             id: slMouse
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            function set(x) { const f = Math.max(0, Math.min(1, x / width)); sl.moved(sl.from + f * (sl.to - sl.from)); }
+            function snap(v) { return sl.step > 0 ? sl.from + Math.round((v - sl.from) / sl.step) * sl.step : v; }
+            function set(x) {
+                const f = sl.mid ? (x - sl.height / 2) / (width - sl.height) : x / width;
+                const v = snap(sl.from + Math.max(0, Math.min(1, f)) * (sl.to - sl.from));
+                if (Math.abs(v - sl.value) > 1e-6 || !sl.step) sl.moved(v);
+            }
             onPressed: m => set(m.x)
             onPositionChanged: m => set(m.x)
-            onWheel: w => sl.moved(Math.max(sl.from, Math.min(sl.to, sl.value + (w.angleDelta.y > 0 ? 0.05 : -0.05) * (sl.to - sl.from))))
+            onReleased: sl.released()
+            onWheel: w => { sl.moved(snap(Math.max(sl.from, Math.min(sl.to, sl.value + (w.angleDelta.y > 0 ? 1 : -1) * (sl.step || 0.05 * (sl.to - sl.from)))))); sl.released(); }
+        }
+    }
+
+    // ── ползунок голоса: заголовок и значение сверху, подписи краёв («мягче … твёрже») снизу
+    component VoiceSlider: Column {
+        id: vs
+        property string title: ""
+        property string valueText: ""
+        property string low: ""
+        property string high: ""
+        property alias from: vsl.from
+        property alias to: vsl.to
+        property alias value: vsl.value
+        property alias origin: vsl.origin
+        property alias step: vsl.step
+        signal moved(real v)
+        signal released()
+        spacing: 6
+        Item {
+            width: parent.width; height: 22
+            Label { anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                    text: vs.title; size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+            Label { anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                    text: vs.valueText; size: 13; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+        }
+        BigSlider { id: vsl; width: parent.width; onMoved: v => vs.moved(v); onReleased: vs.released() }
+        Item {
+            width: parent.width; height: 16
+            Label { anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
+                    text: vs.low; size: 12; color: Theme.fgVariant; elide: Text.ElideNone }
+            Label { anchors { right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
+                    text: vs.high; size: 12; color: Theme.fgVariant; elide: Text.ElideNone }
         }
     }
 
@@ -172,6 +227,27 @@ Item {
             Icon { anchors.centerIn: parent; name: "check"; size: 16; weight: 700; color: Theme.primary; opacity: sw.checked ? 1 : 0 }
         }
         MouseArea { id: swMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: sw.toggled() }
+    }
+
+    // ── строка-переключатель раздела «Ассистент»: k — ключ в Assistant.cfg
+    component AsOption: Rectangle {
+        id: ao
+        property string k: ""
+        property string icon: ""
+        property string text: ""
+        readonly property bool on: !!Assistant.cfg[k]
+        height: 52
+        radius: on ? 18 : 26
+        color: on ? Theme.secondaryContainer : Theme.glassChip
+        Behavior on radius { Anim { kind: "fast" } }
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Icon { id: aoIcon; anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+               name: ao.icon; size: 20; fill: ao.on ? 1 : 0; color: ao.on ? Theme.secondaryContainerFg : Theme.fg }
+        Label { anchors { left: aoIcon.right; leftMargin: 12; right: aoSw.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                text: ao.text; size: 14; weight: 600; color: ao.on ? Theme.secondaryContainerFg : Theme.fg }
+        M3Switch { id: aoSw; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                   scale: 0.85; checked: ao.on; onToggled: Assistant.cfg[ao.k] = !ao.on }
+        MouseArea { anchors.fill: parent; z: -1; cursorShape: Qt.PointingHandCursor; onClicked: Assistant.cfg[ao.k] = !ao.on }
     }
 
     // ── слева: разделы
@@ -703,170 +779,205 @@ Item {
     }
 
     // ── справа: раздел «Ассистент» (настройки службы glass-assistant — Assistant.cfg)
+    // Обычные: голос, тон, скорость и два главных переключателя. Тумблер «Расширенные» раскрывает остальное
+    // (окно растёт вниз пружинкой). Ползунки звучат сразу: тянешь — через миг превью, отпустил — тут же.
     Item {
         id: asPage
         visible: root.section === "assistant"
         anchors { top: parent.top; bottom: parent.bottom; left: nav.right; right: parent.right; margins: 24; leftMargin: 8 }
+        // по высоте, к которой идёт раскрытие, а не по текущей: окно и «Расширенные» растут одной пружинкой
+        readonly property real advTarget: Assistant.cfg.advanced ? advCol.height + 6 : 0
+        readonly property int wantHeight: Math.ceil(asCol.y + asCol.height - advBox.height + advTarget + 48)
+
+        // 1,1× / 1.1×
+        function num(v, digits) { const t = v.toFixed(digits); return Config.lang === "en" ? t : t.replace(".", ","); }
+        function toneText(v) {
+            const i = Math.round(v * 2) + 2;
+            return [I18n.t("мягкий", "soft"), I18n.t("мягче", "softer"), I18n.t("обычный", "normal"),
+                    I18n.t("твёрже", "firmer"), I18n.t("твёрдый", "firm")][Math.max(0, Math.min(4, i))];
+        }
+        Timer { id: previewSoon; interval: 380; onTriggered: Assistant.preview() }
+        function changed() { previewSoon.restart(); }
+        function done() { previewSoon.stop(); Assistant.preview(); }
 
         IconButton {
             anchors { top: parent.top; right: parent.right; topMargin: -6; rightMargin: -6 }
+            z: 1
             icon: "close"; size: 40; iconSize: 22
             onClicked: root.close()
         }
-        Column {
-            width: parent.width - 60
-            spacing: 4
-            Label { text: I18n.t("Ассистент", "Assistant"); size: 26; weight: 750; elide: Text.ElideNone }
-            Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
-                    text: I18n.t("«" + Assistant.cfg.name + "» или Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
-                                 "“" + Assistant.cfg.name + "” or Super+A — by voice, Super+Space then “?” — by text. A local model answers; “morkov” first, “??” or Super+Alt+A — Claude.") }
-        }
+        Flickable {
+            id: asFlick
+            anchors.fill: parent
+            contentHeight: asCol.y + asCol.height + 8
+            interactive: contentHeight > height + 1
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            Behavior on contentY { enabled: !asFlick.moving; Anim { kind: "spatial" } }
+            // раскрыл «Расширенные», а окно уже во весь экран — когда раскроются, доехать до них
+            Connections {
+                target: Assistant.cfg
+                function onAdvancedChanged() { if (Assistant.cfg.advanced) advScroll.restart(); else asFlick.contentY = 0; }
+            }
+            Timer {
+                id: advScroll; interval: Theme.durSpatial + 60
+                onTriggered: asFlick.contentY = Math.max(0, Math.min(asCol.y + advToggle.y - 8, asFlick.contentHeight - asFlick.height))
+            }
 
-        // ── состояние службы и ключа
-        Rectangle {
-            id: asStatus
-            y: 84
-            width: parent.width; height: 56
-            radius: 20
-            color: Assistant.online && Assistant.hasKey ? Theme.primaryContainer : Theme.glassChip
-            Icon { id: asIcon; anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
-                   name: !Assistant.online ? "power_off" : Assistant.hasKey ? "cloud_done" : "key_off"; size: 22; fill: 1
-                   color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg }
             Column {
-                anchors { left: asIcon.right; leftMargin: 12; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                Label { width: parent.width; size: 14; weight: 700; color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg
-                        text: !Assistant.online ? I18n.t("Служба не запущена", "Service is not running")
-                            : Assistant.hasKey ? I18n.t("Работает · Claude подключён", "Running · Claude connected")
-                            : I18n.t("Работает · без ключа Claude — отвечает локальная модель", "Running · no Claude key — the local model answers") }
-                Label { width: parent.width; size: 12; color: Assistant.online && Assistant.hasKey ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
-                        text: !Assistant.online ? "systemctl --user start glass-assistant"
-                            : I18n.t("Ключ: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…", "Key: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…") }
+                id: asHead
+                width: parent.width - 60
+                spacing: 4
+                Label { text: Assistant.name; size: 26; weight: 750; elide: Text.ElideNone }
+                Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
+                        text: I18n.t("Позови «Тори» или нажми Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
+                                     "Say “Tori” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
             }
-        }
 
-        Column {
-            anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
-            spacing: 10
-            // имя — оно же слово-активатор; все четыре проверены: Whisper узнаёт их 8 раз из 8
-            Label { text: I18n.t("Имя — им же и зовёшь", "Name — also the wake word"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-            TunerChoice {
-                width: parent.width
-                options: [{ id: "Ирис", t: "Ирис" }, { id: "Аврора", t: "Аврора" }, { id: "Кайра", t: "Кайра" }, { id: "Юна", t: "Юна" }]
-                current: Assistant.cfg.name
-                onPicked: v => Assistant.cfg.name = v
-            }
-            Label { topPadding: 6; text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-            TunerChoice {
-                width: parent.width
-                options: [{ id: "claude-opus-5-5", icon: "psychology", t: "Opus 5.5" },
-                          { id: "claude-sonnet-5-5", icon: "bolt", t: "Sonnet 5.5" },
-                          { id: "claude-haiku-5-5", icon: "speed", t: "Haiku 5.5" }]
-                current: Assistant.cfg.model
-                onPicked: v => Assistant.cfg.model = v
-            }
-            Label { topPadding: 6; text: I18n.t("Где думать", "Where to think"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-            TunerChoice {
-                width: parent.width
-                options: [{ id: "auto", icon: "auto_mode", t: I18n.t("Локально + Claude по слову", "Local + Claude on cue") },
-                          { id: "claude", icon: "cloud", t: I18n.t("Всегда Claude", "Always Claude") },
-                          { id: "local", icon: "memory", t: I18n.t("Только локально", "Local only") }]
-                current: Assistant.cfg.backend
-                onPicked: v => Assistant.cfg.backend = v
-            }
-            Item {
-                width: parent.width; height: 30
-                Label { anchors { left: parent.left; bottom: parent.bottom } text: I18n.t("Голос", "Voice"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-                Rectangle {
-                    anchors { right: parent.right; bottom: parent.bottom }
-                    width: hearRow.implicitWidth + 24; height: 30; radius: hearMouse.pressed ? 10 : 15
-                    color: Theme.primary
-                    Behavior on radius { Anim { kind: "fast" } }
-                    Row { id: hearRow; anchors.centerIn: parent; spacing: 6
-                          Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
-                          Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
-                    MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: voiceBox.preview({}) }
+            // ── состояние службы и ключа
+            Rectangle {
+                id: asStatus
+                anchors { top: asHead.bottom; topMargin: 16 }
+                width: parent.width; height: 56
+                radius: 20
+                color: Assistant.online && Assistant.hasKey ? Theme.primaryContainer : Theme.glassChip
+                Icon { id: asIcon; anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                       name: !Assistant.online ? "power_off" : Assistant.hasKey ? "cloud_done" : "key_off"; size: 22; fill: 1
+                       color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg }
+                Column {
+                    anchors { left: asIcon.right; leftMargin: 12; right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                    Label { width: parent.width; size: 14; weight: 700; color: Assistant.online && Assistant.hasKey ? Theme.primaryContainerFg : Theme.fg
+                            text: !Assistant.online ? I18n.t("Служба не запущена", "Service is not running")
+                                : Assistant.hasKey ? I18n.t("Работает · Claude подключён", "Running · Claude connected")
+                                : I18n.t("Работает · без ключа Claude — отвечает локальная модель", "Running · no Claude key — the local model answers") }
+                    Label { width: parent.width; size: 12; color: Assistant.online && Assistant.hasKey ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
+                            text: !Assistant.online ? "systemctl --user start glass-assistant"
+                                : I18n.t("Ключ: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…", "Key: ~/.config/glass/assistant.env → ANTHROPIC_API_KEY=…") }
                 }
             }
-            // голос: 3 женских и 2 мужских Silero, у каждого — тон и темп; выбор сразу звучит
+
             Column {
-                id: voiceBox
-                width: parent.width
-                spacing: 6
-                function preview(o) {
-                    const c = Assistant.cfg;
-                    if (o.voice) c.voice = o.voice;
-                    if (o.pitch) c.voicePitch = o.pitch;
-                    if (o.rate) c.voiceRate = o.rate;
-                    Assistant.say(I18n.t("Привет! Так я буду тебе отвечать.", "Hi! This is how I will answer you."),
-                                  { voice: c.voice, pitch: c.voicePitch, rate: c.voiceRate });
+                id: asCol
+                anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
+                spacing: 10
+
+                // ── голос: 3 женских и 2 мужских Silero; выбор сразу звучит
+                Item {
+                    width: parent.width; height: 30
+                    Label { anchors { left: parent.left; bottom: parent.bottom } text: I18n.t("Голос", "Voice"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                    Rectangle {
+                        anchors { right: parent.right; bottom: parent.bottom }
+                        width: hearRow.implicitWidth + 24; height: 30; radius: hearMouse.pressed ? 10 : 15
+                        color: Theme.primary
+                        Behavior on radius { Anim { kind: "fast" } }
+                        Row { id: hearRow; anchors.centerIn: parent; spacing: 6
+                              Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
+                              Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
+                        MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: asPage.done() }
+                    }
                 }
-                Label { text: I18n.t("Женский", "Female"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
+                // женские (face_3) и мужские (face_6) — одним рядом
                 TunerChoice {
                     width: parent.width
                     options: [{ id: "xenia", icon: "face_3", t: I18n.t("Шёлк", "Silk") }, { id: "kseniya", icon: "face_3", t: I18n.t("Мята", "Mint") },
-                              { id: "baya", icon: "face_3", t: I18n.t("Карамель", "Caramel") }]
+                              { id: "baya", icon: "face_3", t: I18n.t("Карамель", "Caramel") },
+                              { id: "aidar", icon: "face_6", t: I18n.t("Бархат", "Velvet") }, { id: "eugene", icon: "face_6", t: I18n.t("Гранит", "Granite") }]
                     current: Assistant.cfg.voice
-                    onPicked: v => voiceBox.preview({ voice: v })
+                    onPicked: v => { Assistant.cfg.voice = v; asPage.done(); }
                 }
-                Label { topPadding: 4; text: I18n.t("Мужской", "Male"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
-                TunerChoice {
+
+                // ── тон и скорость — как в Siri: ползунки, превью звучит прямо на ходу
+                VoiceSlider {
                     width: parent.width
-                    options: [{ id: "aidar", icon: "face_6", t: I18n.t("Бархат", "Velvet") }, { id: "eugene", icon: "face_6", t: I18n.t("Гранит", "Granite") }]
-                    current: Assistant.cfg.voice
-                    onPicked: v => voiceBox.preview({ voice: v })
+                    topPadding: 8
+                    title: I18n.t("Тон", "Tone")
+                    valueText: asPage.toneText(Assistant.cfg.voiceTone)
+                    low: I18n.t("мягче", "softer"); high: I18n.t("твёрже", "firmer")
+                    from: -1; to: 1; origin: 0; step: 0.25
+                    value: Assistant.cfg.voiceTone
+                    onMoved: v => { Assistant.cfg.voiceTone = v; asPage.changed(); }
+                    onReleased: asPage.done()
                 }
-                Label { topPadding: 4; text: I18n.t("Тон", "Pitch"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
-                TunerChoice {
+                VoiceSlider {
                     width: parent.width
-                    options: [{ id: "low", t: I18n.t("Ниже", "Lower") }, { id: "medium", t: I18n.t("Обычный", "Normal") },
-                              { id: "high", t: I18n.t("Выше", "Higher") }]
-                    current: Assistant.cfg.voicePitch
-                    onPicked: v => voiceBox.preview({ pitch: v })
+                    title: I18n.t("Скорость", "Speed")
+                    valueText: asPage.num(Assistant.cfg.voiceSpeed, 2).replace(/0$/, "") + "×"
+                    low: I18n.t("медленнее", "slower"); high: I18n.t("быстрее", "faster")
+                    from: 0.75; to: 1.35; origin: 1.0; step: 0.05
+                    value: Assistant.cfg.voiceSpeed
+                    onMoved: v => { Assistant.cfg.voiceSpeed = Math.round(v * 100) / 100; asPage.changed(); }
+                    onReleased: asPage.done()
                 }
-                Label { topPadding: 4; text: I18n.t("Темп", "Speed"); size: 12; weight: 650; color: Theme.fgVariant; elide: Text.ElideNone }
-                TunerChoice {
+
+                Item { width: 1; height: 2 }
+                AsOption { width: parent.width; k: "wake"; icon: "hearing"
+                           text: I18n.t("Звать по имени — «Тори»", "Wake by name — “Tori”") }
+                AsOption { width: parent.width; k: "speakVoice"; icon: "record_voice_over"
+                           text: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") }
+
+                // ── расширенные: тумблер раскрывает остальное
+                Item { width: 1; height: 4 }
+                AsOption { id: advToggle; width: parent.width; k: "advanced"; icon: "tune"
+                           text: I18n.t("Расширенные настройки", "Advanced settings") }
+                Item {
+                    id: advBox
                     width: parent.width
-                    options: [{ id: "slow", t: I18n.t("Медленнее", "Slower") }, { id: "medium", t: I18n.t("Обычный", "Normal") },
-                              { id: "fast", t: I18n.t("Быстрее", "Faster") }]
-                    current: Assistant.cfg.voiceRate
-                    onPicked: v => voiceBox.preview({ rate: v })
-                }
-            }
-            // сколько тишины — конец фразы: коротко — быстрее отвечает, длинно — не обрывает на раздумье
-            Label { topPadding: 6; text: I18n.t("Пауза в конце фразы", "Pause before I stop listening"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-            TunerChoice {
-                width: parent.width
-                options: [{ id: "1.5", t: I18n.t("Короче · 1,5 с", "Shorter · 1.5 s") }, { id: "2", t: I18n.t("Обычная · 2 с", "Normal · 2 s") },
-                          { id: "3", t: I18n.t("Длинная · 3 с", "Long · 3 s") }]
-                current: String(Assistant.cfg.pause)
-                onPicked: v => Assistant.cfg.pause = parseFloat(v)
-            }
-            Repeater {
-                model: [
-                    { k: "speakVoice", icon: "record_voice_over", t: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") },
-                    { k: "speakTyped", icon: "keyboard", t: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") },
-                    { k: "wake", icon: "hearing", t: I18n.t("Звать по имени: «" + Assistant.cfg.name + "»; «" + (Assistant.cfg.claudeWords[0] || "морковь") + "» после него — Claude",
-                                                         "Wake by name: “" + Assistant.cfg.name + "”; “" + (Assistant.cfg.claudeWords[0] || "morkov") + "” after it — Claude") },
-                    { k: "followUp", icon: "forum", t: I18n.t("Разговор: после ответа слушать продолжение без имени",
-                                                              "Conversation: after an answer, keep listening without the wake word") }
-                ]
-                Rectangle {
-                    id: asOpt
-                    required property var modelData
-                    readonly property bool on: !!Assistant.cfg[modelData.k]
-                    width: parent.width; height: 52
-                    radius: on ? 18 : 26
-                    color: on ? Theme.secondaryContainer : Theme.glassChip
-                    Behavior on radius { Anim { kind: "fast" } }
-                    Behavior on color { ColorAnimation { duration: 160 } }
-                    Icon { id: asOptIcon; anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                           name: asOpt.modelData.icon; size: 20; fill: asOpt.on ? 1 : 0; color: asOpt.on ? Theme.secondaryContainerFg : Theme.fg }
-                    Label { anchors { left: asOptIcon.right; leftMargin: 12; right: asSw.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                            text: asOpt.modelData.t; size: 14; weight: 600; color: asOpt.on ? Theme.secondaryContainerFg : Theme.fg }
-                    M3Switch { id: asSw; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                               scale: 0.85; checked: asOpt.on; onToggled: Assistant.cfg[asOpt.modelData.k] = !asOpt.on }
-                    MouseArea { anchors.fill: parent; z: -1; cursorShape: Qt.PointingHandCursor; onClicked: Assistant.cfg[asOpt.modelData.k] = !asOpt.on }
+                    height: Assistant.cfg.advanced ? advCol.height + 6 : 0
+                    opacity: Assistant.cfg.advanced ? 1 : 0
+                    visible: height > 0.5
+                    clip: true
+                    Behavior on height { Anim { kind: "spatial" } }
+                    Behavior on opacity { Anim { kind: "effects" } }
+                    Column {
+                        id: advCol
+                        y: 6
+                        width: parent.width
+                        spacing: 10
+                        VoiceSlider {
+                            width: parent.width
+                            title: I18n.t("Высота голоса", "Pitch")
+                            valueText: Math.abs(Assistant.cfg.voiceHeight) < 0.01 ? I18n.t("обычная", "normal")
+                                     : (Assistant.cfg.voiceHeight > 0 ? "+" : "−") + Math.round(Math.abs(Assistant.cfg.voiceHeight) * 15) + "%"
+                            low: I18n.t("ниже", "lower"); high: I18n.t("выше", "higher")
+                            from: -1; to: 1; origin: 0; step: 0.25
+                            value: Assistant.cfg.voiceHeight
+                            onMoved: v => { Assistant.cfg.voiceHeight = v; asPage.changed(); }
+                            onReleased: asPage.done()
+                        }
+                        Label { topPadding: 6; text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                        TunerChoice {
+                            width: parent.width
+                            options: [{ id: "claude-opus-5-5", icon: "psychology", t: "Opus 5.5" },
+                                      { id: "claude-sonnet-5-5", icon: "bolt", t: "Sonnet 5.5" },
+                                      { id: "claude-haiku-5-5", icon: "speed", t: "Haiku 5.5" }]
+                            current: Assistant.cfg.model
+                            onPicked: v => Assistant.cfg.model = v
+                        }
+                        Label { topPadding: 6; text: I18n.t("Где думать", "Where to think"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                        TunerChoice {
+                            width: parent.width
+                            options: [{ id: "auto", icon: "auto_mode", t: I18n.t("Локально + Claude по слову", "Local + Claude on cue") },
+                                      { id: "claude", icon: "cloud", t: I18n.t("Всегда Claude", "Always Claude") },
+                                      { id: "local", icon: "memory", t: I18n.t("Только локально", "Local only") }]
+                            current: Assistant.cfg.backend
+                            onPicked: v => Assistant.cfg.backend = v
+                        }
+                        // сколько тишины — конец фразы: коротко — быстрее отвечает, длинно — не обрывает на раздумье
+                        Label { topPadding: 6; text: I18n.t("Пауза в конце фразы", "Pause before I stop listening"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                        TunerChoice {
+                            width: parent.width
+                            options: [{ id: "1.5", t: I18n.t("Короче · 1,5 с", "Shorter · 1.5 s") }, { id: "2", t: I18n.t("Обычная · 2 с", "Normal · 2 s") },
+                                      { id: "3", t: I18n.t("Длинная · 3 с", "Long · 3 s") }]
+                            current: String(Assistant.cfg.pause)
+                            onPicked: v => Assistant.cfg.pause = parseFloat(v)
+                        }
+                        Item { width: 1; height: 2 }
+                        AsOption { width: parent.width; k: "speakTyped"; icon: "keyboard"
+                                   text: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") }
+                        AsOption { width: parent.width; k: "followUp"; icon: "forum"
+                                   text: I18n.t("Разговор: после ответа слушать продолжение без имени",
+                                                "Conversation: after an answer, keep listening without the name") }
+                    }
                 }
             }
         }

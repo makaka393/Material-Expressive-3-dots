@@ -31,8 +31,9 @@ PanelWindow {
         anchors.horizontalCenter: parent.horizontalCenter
         y: Math.max(40, Math.round((win.height - 940) / 2))
         width: 900
-        // высоту задаёт открытый раздел (SettingsContent.wantHeight), но не больше экрана
-        height: Math.min(win.height - 80, content.item ? content.item.wantHeight : 700)
+        // высоту задаёт открытый раздел (SettingsContent.wantHeight), но низ — не ниже края экрана
+        // (верх стоит на месте); не влезло — раздел прокручивается
+        height: Math.min(win.height - y - 40, content.item ? content.item.wantHeight : 700)
         Behavior on height { Anim { kind: "spatial" } }
         opacity: win.open ? 1 : 0
         scale: win.open ? 1 : 0.92

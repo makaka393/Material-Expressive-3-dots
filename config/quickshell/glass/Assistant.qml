@@ -12,6 +12,8 @@ import Quickshell.Io
 Singleton {
     id: root
 
+    // имя — одно, оно же слово-активатор (assistant/glass_assistant/config.py: NAME)
+    readonly property string name: I18n.t("Тори", "Tori")
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/glass-assistant.sock"
     readonly property bool online: sock.connected
     property string state: "idle"          // idle | listening | transcribing | thinking | speaking
@@ -101,8 +103,14 @@ Singleton {
     function warm() { if (sock.connected) send({ cmd: "warm" }); }
     function unload() { if (sock.connected) send({ cmd: "unload" }); }
     function stop() { send({ cmd: "stop" }); linger.stop(); }
-    // o — голос для «прослушать»: { voice, pitch, rate } (иначе — из настроек)
-    function say(text, o) { send(Object.assign({ cmd: "say", text: text }, o || {})); }
+    function say(text) { send({ cmd: "say", text: text }); }
+    // «прослушать» в настройках: голос и ползунки — прямо в команде (файл настроек мог ещё не записаться),
+    // новое прослушивание обрывает прошлое. Фраза всегда русская: Silero говорит только по-русски
+    function preview() {
+        if (!sock.connected) return;
+        send({ cmd: "say", preview: true, text: "Привет! Я Тори. Так будет звучать мой голос.",
+               voice: acfg.voice, tone: acfg.voiceTone, speed: acfg.voiceSpeed, height: acfg.voiceHeight });
+    }
     function reset() { send({ cmd: "reset" }); heard = ""; answer = ""; }
     function dismiss() { linger.stop(); }
 
@@ -121,15 +129,16 @@ Singleton {
             property string model: "claude-opus-5-5"
             property string effort: "low"
             property string voice: "xenia"
-            property string voicePitch: "medium"       // low | medium | high
-            property string voiceRate: "medium"        // slow | medium | fast
+            property real voiceTone: 0                  // −1 мягче … +1 твёрже
+            property real voiceSpeed: 1.0               // 0,75 … 1,35
+            property real voiceHeight: 0                // −1 ниже … +1 выше
             property bool speakVoice: true
             property bool speakTyped: false
             property bool wake: false
             property bool followUp: true                // после голосового ответа слушать продолжение
             property real pause: 2.0                    // с тишины — конец фразы
-            property string name: "Ирис"                // имя — оно же слово-активатор
             property var wakeWords: []                  // ещё слова-активаторы, кроме имени
+            property bool advanced: false               // в настройках раскрыты «Расширенные» (служба не читает)
             property var claudeWords: ["морковь"]
             property string mic: ""
         }
