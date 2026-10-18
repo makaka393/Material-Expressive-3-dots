@@ -12,25 +12,55 @@ Singleton {
     id: root
 
     // каталог: размер по умолчанию и пределы в клетках; tone и bg — цвет темы и подложка по умолчанию
-    // (каждый виджет можно перенастроить: «Настроить» в режиме правки); menu — свои пункты меню
+    // (каждый виджет можно перенастроить: «Настроить» в режиме правки); menu — свои пункты меню;
+    // variants — что предлагает каталог (размер, свои настройки и подпись), первый — по умолчанию
     readonly property var catalog: [
-        { type: "glance", cat: "time",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 2, tone: "primary",   bg: "none", icon: "wb_sunny",          ru: "Коротко о главном", en: "At a glance" },
-        { type: "clock", cat: "time",    w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 4, tone: "primary",   bg: "none", icon: "schedule",          ru: "Часы",              en: "Clock" },
-        { type: "weather", cat: "weather",  w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "secondary", bg: "blur", icon: "partly_cloudy_day", ru: "Погода",            en: "Weather" },
-        { type: "forecast", cat: "weather", w: 4, h: 2, minW: 3, minH: 2, maxW: 8, maxH: 3, tone: "tertiary",  bg: "blur", icon: "show_chart",        ru: "Прогноз",           en: "Forecast" },
-        { type: "music", cat: "media",    w: 4, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "tertiary",  bg: "blur", icon: "music_note",        ru: "Музыка",            en: "Music" },
-        { type: "calendar", cat: "time", w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4, tone: "neutral",   bg: "blur", icon: "calendar_month",    ru: "Календарь",         en: "Calendar" },
-        { type: "search", cat: "tools",   w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 1, tone: "neutral",   bg: "blur", icon: "search",            ru: "Поиск",             en: "Search" },
-        { type: "apps", cat: "tools",     w: 4, h: 1, minW: 2, minH: 1, maxW: 8, maxH: 2, tone: "neutral",   bg: "blur", icon: "apps",              ru: "Частые приложения", en: "Frequent apps" },
-        { type: "toggles", cat: "system",  w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "primary",   bg: "blur", icon: "toggle_on",         ru: "Быстрые кнопки",    en: "Quick toggles" },
-        { type: "system", cat: "system",   w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "secondary", bg: "blur", icon: "memory",            ru: "Система",           en: "System" },
-        { type: "timer", cat: "tools",    w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary",  bg: "blur", icon: "timer",             ru: "Таймер",            en: "Timer" },
-        { type: "note", cat: "tools",     w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "tertiary",  bg: "blur", icon: "sticky_note_2",     ru: "Заметка",           en: "Note",
-          menu: [{ id: "clear", icon: "ink_eraser", ru: "Очистить заметку", en: "Clear note" }] },
-        { type: "sun", cat: "weather",      w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary",  bg: "blur", icon: "wb_twilight",       ru: "Солнце",            en: "Sun" },
-        { type: "photo", cat: "media",    w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "secondary", bg: "none", icon: "photo",             ru: "Фото",              en: "Photo",
-          menu: [{ id: "next", icon: "skip_next", ru: "Следующее фото", en: "Next photo" }] },
-        { type: "progress", cat: "time", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 3, tone: "primary",   bg: "blur", icon: "data_usage",        ru: "День и год",        en: "Day & year" }
+        { type: "clock", cat: "time", w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 4, tone: "neutral", bg: "blur", icon: "schedule", ru: "Часы", en: "Clock",
+          variants: [{ w: 2, h: 2, extra: { face: "analog" },   ru: "Стрелки",  en: "Analog" },
+                     { w: 2, h: 2, extra: { face: "bubble" },   ru: "Формы",    en: "Shapes" },
+                     { w: 2, h: 2, extra: { face: "orbit" },    ru: "Орбита",   en: "Orbit" },
+                     { w: 2, h: 2, extra: { face: "planets" },  ru: "Планеты",  en: "Planets" },
+                     { w: 3, h: 2, extra: { face: "horizon" },  ru: "Горизонт", en: "Horizon" },
+                     { w: 4, h: 2, extra: { face: "dots" },     ru: "Точки",    en: "Dots" },
+                     { w: 4, h: 2, extra: { face: "segments" }, ru: "Сегменты", en: "Segments" }] },
+        { type: "glance", cat: "time", w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 2, tone: "primary", bg: "none", icon: "wb_sunny", ru: "Коротко о главном", en: "At a glance",
+          variants: [{ w: 4, h: 1, ru: "Строка", en: "Line" }, { w: 6, h: 2, ru: "Крупно, с закатом", en: "Large, with sunset" }] },
+        { type: "calendar", cat: "time", w: 3, h: 3, minW: 2, minH: 2, maxW: 4, maxH: 4, tone: "neutral", bg: "blur", icon: "calendar_month", ru: "Календарь", en: "Calendar",
+          variants: [{ w: 2, h: 2, ru: "Сегодня", en: "Today" }, { w: 3, h: 3, ru: "Месяц", en: "Month" }, { w: 4, h: 4, ru: "Месяц крупно", en: "Large month" }] },
+        { type: "progress", cat: "time", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 3, tone: "primary", bg: "blur", icon: "data_usage", ru: "День и год", en: "Day & year",
+          variants: [{ w: 2, h: 2, extra: { mode: "day" }, ru: "День", en: "Day" }, { w: 2, h: 2, extra: { mode: "month" }, ru: "Месяц", en: "Month" },
+                     { w: 4, h: 2, extra: { mode: "year" }, ru: "Год", en: "Year" }] },
+        { type: "weather", cat: "weather", w: 2, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "secondary", bg: "blur", icon: "partly_cloudy_day", ru: "Погода", en: "Weather",
+          variants: [{ w: 2, h: 1, ru: "Мини", en: "Mini" }, { w: 2, h: 2, ru: "Сейчас", en: "Now" },
+                     { w: 4, h: 2, ru: "По часам", en: "Hourly" }, { w: 4, h: 3, ru: "По часам и дням", en: "Hourly and daily" }] },
+        { type: "forecast", cat: "weather", w: 4, h: 2, minW: 3, minH: 2, maxW: 8, maxH: 3, tone: "tertiary", bg: "blur", icon: "show_chart", ru: "Прогноз", en: "Forecast",
+          variants: [{ w: 4, h: 2, ru: "Кривая на полдня", en: "Half-day curve" }, { w: 6, h: 3, ru: "Кривая и неделя", en: "Curve and week" }] },
+        { type: "sun", cat: "weather", w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary", bg: "blur", icon: "wb_twilight", ru: "Солнце", en: "Sun",
+          variants: [{ w: 2, h: 1, ru: "Ближайшее событие", en: "Next event" }, { w: 2, h: 2, ru: "Дуга дня", en: "Day arc" }, { w: 4, h: 2, ru: "Широкая дуга", en: "Wide arc" }] },
+        { type: "music", cat: "media", w: 4, h: 2, minW: 2, minH: 1, maxW: 6, maxH: 3, tone: "tertiary", bg: "blur", icon: "music_note", ru: "Музыка", en: "Music",
+          variants: [{ w: 4, h: 1, ru: "Мини-плеер", en: "Mini player" }, { w: 2, h: 2, ru: "Обложка", en: "Cover" },
+                     { w: 4, h: 2, ru: "Плеер", en: "Player" }, { w: 4, h: 3, ru: "Большая обложка", en: "Large cover" }] },
+        { type: "photo", cat: "media", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "secondary", bg: "none", icon: "photo", ru: "Фото", en: "Photo",
+          menu: [{ id: "next", icon: "skip_next", ru: "Следующее фото", en: "Next photo" }],
+          variants: [{ w: 2, h: 2, extra: { shape: "squircle" }, ru: "Скруглённое", en: "Rounded" },
+                     { w: 2, h: 2, extra: { shape: "cookie" },   ru: "Печенька",   en: "Cookie" },
+                     { w: 2, h: 2, extra: { shape: "clover" },   ru: "Клевер",     en: "Clover" },
+                     { w: 2, h: 2, extra: { shape: "hex" },      ru: "Шестиугольник", en: "Hexagon" },
+                     { w: 2, h: 2, extra: { shape: "circle" },   ru: "Круг",       en: "Circle" },
+                     { w: 4, h: 3, extra: { shape: "squircle" }, ru: "Большое",    en: "Large" }] },
+        { type: "search", cat: "tools", w: 4, h: 1, minW: 3, minH: 1, maxW: 8, maxH: 1, tone: "neutral", bg: "blur", icon: "search", ru: "Поиск", en: "Search",
+          variants: [{ w: 4, h: 1, ru: "Строка поиска", en: "Search bar" }, { w: 6, h: 1, ru: "Широкая, с кнопками", en: "Wide, with buttons" }] },
+        { type: "apps", cat: "tools", w: 4, h: 1, minW: 2, minH: 1, maxW: 8, maxH: 2, tone: "neutral", bg: "blur", icon: "apps", ru: "Частые приложения", en: "Frequent apps",
+          variants: [{ w: 4, h: 1, ru: "Ряд", en: "Row" }, { w: 4, h: 2, ru: "Два ряда с подписями", en: "Two rows with labels" }] },
+        { type: "timer", cat: "tools", w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "tertiary", bg: "blur", icon: "timer", ru: "Таймер", en: "Timer",
+          variants: [{ w: 4, h: 1, ru: "Ряд", en: "Row" }, { w: 2, h: 2, ru: "Кольцо", en: "Ring" }, { w: 4, h: 2, ru: "Кольцо и кнопки", en: "Ring and buttons" }] },
+        { type: "note", cat: "tools", w: 2, h: 2, minW: 2, minH: 2, maxW: 6, maxH: 4, tone: "tertiary", bg: "blur", icon: "sticky_note_2", ru: "Заметка", en: "Note",
+          menu: [{ id: "clear", icon: "ink_eraser", ru: "Очистить заметку", en: "Clear note" }],
+          variants: [{ w: 2, h: 2, ru: "Стикер", en: "Sticker" }, { w: 4, h: 2, ru: "Широкая", en: "Wide" }, { w: 3, h: 3, ru: "Большая", en: "Large" }] },
+        { type: "toggles", cat: "system", w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "primary", bg: "blur", icon: "toggle_on", ru: "Быстрые кнопки", en: "Quick toggles",
+          variants: [{ w: 4, h: 1, ru: "Ряд", en: "Row" }, { w: 2, h: 2, ru: "Квадрат", en: "Square" }, { w: 4, h: 2, ru: "С подписями", en: "With labels" }] },
+        { type: "system", cat: "system", w: 2, h: 2, minW: 2, minH: 1, maxW: 4, maxH: 2, tone: "secondary", bg: "blur", icon: "memory", ru: "Система", en: "System",
+          variants: [{ w: 2, h: 1, ru: "Мини", en: "Mini" }, { w: 2, h: 2, ru: "Полоски", en: "Bars" }, { w: 4, h: 2, ru: "Кольца", en: "Rings" }] }
     ]
     // категории каталога — в этом порядке
     readonly property var categories: [
@@ -53,7 +83,7 @@ Singleton {
     property bool editing: false
     property bool typing: false          // пишем в заметке — рабочему столу нужна клавиатура
     property bool picking: false         // открыт каталог «Добавить виджет»
-    property string pickCat: ""          // какая категория каталога видна ("" — все)
+    property string pickType: "clock"    // какой виджет открыт в каталоге (вкладка слева)
     property string tuning: ""           // wid виджета, у которого открыта панель «Настроить»
     property int rev: 0                  // растёт при каждой правке настроек виджета — для привязок
     property var backdrop: null          // размытые обои (текстура рабочего стола) — подложка «стекла» виджетов
@@ -64,7 +94,7 @@ Singleton {
     property bool loaded: false
     property string file: Config.dir + "/widgets.json"
     onEditingChanged: { if (editing) typing = false; else { picking = false; tuning = ""; } }
-    onPickingChanged: { if (picking) tuning = ""; else pickCat = ""; }
+    onPickingChanged: if (picking) tuning = ""
     onTuningChanged: if (tuning !== "") picking = false
 
     // команда виджету из меню по правому клику (см. menu в каталоге): виджет слушает своё wid
@@ -102,10 +132,10 @@ Singleton {
     }
 
     // ── правки
-    function add(type) {
+    function add(type, w0, h0, extra) {
         if (!known(type)) return;
         const s = spec(type);
-        let w = s.w, h = s.h, p = freeSpot(w, h);
+        let w = clampW(type, w0 || s.w), h = clampH(type, h0 || s.h), p = freeSpot(w, h);
         if (!p) { w = s.minW; h = s.minH; p = freeSpot(w, h); }      // не влез — пробуем самый маленький
         if (!p) {
             Activity.show({ icon: "grid_off", title: I18n.t("Нет места", "No room"), sub: I18n.t("Убери или уменьши виджеты", "Remove or shrink widgets") }, 2200);
@@ -114,7 +144,7 @@ Singleton {
         let n = 1;
         while (indexOf("w" + n) >= 0) n++;
         fresh = "w" + n;
-        model.append({ wid: fresh, type: type, gx: p.x, gy: p.y, gw: w, gh: h, extra: "{}" });
+        model.append({ wid: fresh, type: type, gx: p.x, gy: p.y, gw: w, gh: h, extra: JSON.stringify(extra || {}) });
         save();
     }
     function remove(wid) {
@@ -217,7 +247,7 @@ Singleton {
         function done(): void { root.editing = false; }
         function toggle(): void { root.editing = !root.editing; }
         function catalog(): void { root.editing = true; root.picking = true; }
-        function category(cat: string): void { root.editing = true; root.picking = true; root.pickCat = cat; }
+        function pick(type: string): void { root.editing = true; root.picking = true; if (root.known(type)) root.pickType = type; }
         function add(type: string): void { root.add(type); }
         function remove(wid: string): void { root.remove(wid); }
         function move(wid: string, x: int, y: int): bool { return root.move(wid, x, y); }

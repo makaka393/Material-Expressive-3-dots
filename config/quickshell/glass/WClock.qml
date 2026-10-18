@@ -1,9 +1,11 @@
 import QtQuick
 
 // Часы — любой из циферблатов AOD (формы, стрелки, орбита, точки, планеты, горизонт, сегменты),
-// по умолчанию тот же, что выбран для AOD. Стиль — в «Настроить». Без подложки по умолчанию:
-// циферблат прямо на обоях, как «Коротко о главном». Циферблат вписывается в виджет целиком;
-// при появлении и смене стиля он собирается своей анимацией (как при входе в AOD).
+// по умолчанию тот же, что выбран для AOD. Подложка — стекло темы (размытие и прозрачность как
+// у остальных виджетов; «Без фона» в «Настроить» — как на AOD, прямо на обоях):
+//   «Стрелки» — сама «печенька» циферблата, «Формы» — фигуры под цифрами,
+//   «Орбита» и «Планеты» — круг, остальные — скруглённая плашка по размеру циферблата.
+// Циферблат вписывается в виджет целиком; при появлении и смене стиля собирается своей анимацией.
 Item {
     id: root
     property date now: new Date()
@@ -12,8 +14,26 @@ Item {
 
     readonly property string face: Config.aodFaces.indexOf(cfg.face) >= 0 ? cfg.face : Config.aodFace
     readonly property bool dated: height >= 300 && width >= 300
+    readonly property bool bare: cfg.bg === "none"
+    readonly property bool inner: face === "analog" || face === "bubble"       // подложка — внутри циферблата
+    readonly property bool round: face === "orbit" || face === "planets"
 
-    WidgetSurface { id: ws; cfg: root.cfg; anchors.fill: parent; tone: "primary"; defaultBg: "none"; radius: Math.min(44, root.height / 2) }
+    // цвета и подложка-плашка для циферблатов без своих фигур
+    WidgetSurface {
+        id: ws
+        cfg: root.cfg
+        tone: "neutral"            // тёмная поверхность темы: светлые стрелки и цифры AOD на ней читаются
+        defaultBg: "blur"
+        anchors.centerIn: parent
+        visible: !root.bare && !root.inner
+        shape: root.round ? "circle" : "rect"
+        readonly property real fw: clock.implicitWidth * clock.scale + (root.round ? 18 : 40)
+        readonly property real fh: clock.implicitHeight * clock.scale + (root.round ? 18 : 32)
+        width: root.round ? Math.min(root.width, Math.max(fw, fh)) : Math.min(root.width, fw)
+        height: root.round ? width : Math.min(root.height, fh)
+        radius: Math.min(40, height / 2)
+        opacity: Math.min(1, clock.pp * 3)
+    }
 
     AodClock {
         id: clock
@@ -22,10 +42,11 @@ Item {
         k: 0.5
         showDate: root.dated
         now: root.now
+        surface: root.bare || !root.inner ? null : { cfg: root.cfg, tone: "neutral" }
         property real pp: 0
         p: pp
-        // вписать целиком (k задаёт «чертёж», масштаб — в размер виджета)
-        readonly property real inset: ws.bare ? 8 : 28
+        // вписать целиком (k задаёт «чертёж», масштаб — в размер виджета; плашке оставляем поля)
+        readonly property real inset: root.bare || root.inner ? 8 : (root.round ? 22 : 34)
         scale: implicitWidth > 0 && implicitHeight > 0
                ? Math.min((root.width - 2 * inset) / implicitWidth, (root.height - 2 * inset) / implicitHeight) : 1
         Behavior on scale { enabled: clock.pp >= 1; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }

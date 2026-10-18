@@ -18,6 +18,9 @@ Item {
     property real k: 1
     property real p: 1
     property bool showDate: true
+    // на рабочем столе: подложки фигур — стекло темы (WidgetSurface: размытие и прозрачность из
+    // настроек виджета и оболочки) вместо полупрозрачной заливки AOD. { cfg, tone } или null
+    property var surface: null
 
     function pad(n) { return (n < 10 ? "0" : "") + n; }
     readonly property string hh: pad(now.getHours())
@@ -74,8 +77,19 @@ Item {
                         width: 140 * c.k; height: 140 * c.k
                         AodShape {
                             anchors.fill: parent
+                            visible: !c.surface
                             kind: cell.modelData.shape
                             color: Qt.alpha(cell.modelData.bg, 0.92)
+                            scale: cell.s
+                            rotation: (1 - Math.min(1, cell.s)) * (cell.index % 2 ? 40 : -40)
+                        }
+                        WidgetSurface {
+                            anchors.fill: parent
+                            visible: !!c.surface
+                            cfg: c.surface ? c.surface.cfg : ({})
+                            defaultBg: "blur"
+                            shape: cell.modelData.shape
+                            tintOverride: cell.modelData.bg
                             scale: cell.s
                             rotation: (1 - Math.min(1, cell.s)) * (cell.index % 2 ? 40 : -40)
                         }
@@ -113,8 +127,20 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: d; height: d
 
+                WidgetSurface {
+                    anchors.fill: parent
+                    visible: !!c.surface
+                    cfg: c.surface ? c.surface.cfg : ({})
+                    tone: c.surface ? c.surface.tone : "primary"
+                    defaultBg: "blur"
+                    shape: "cookie"
+                    lobes: 12
+                    scale: dial.s
+                    rotation: (1 - Math.min(1, dial.s)) * -120
+                }
                 Shape {
                     anchors.fill: parent
+                    visible: !c.surface
                     preferredRendererType: Shape.CurveRenderer
                     scale: dial.s
                     rotation: (1 - Math.min(1, dial.s)) * -120

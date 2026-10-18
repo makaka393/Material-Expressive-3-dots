@@ -17,6 +17,10 @@ Item {
     property string tone: "primary"          // по умолчанию для этого виджета (как в каталоге)
     property string defaultBg: "blur"
     property real radius: 44
+    // фигура подложки (как AodShape): "rect" | "circle" | "cookie" | "clover" | "hex" | "squircle"
+    property string shape: "rect"
+    property int lobes: 9
+    property color tintOverride: "transparent"   // свой цвет вместо цвета тона (цифры циферблата «Формы»)
 
     readonly property string bg: ["blur", "solid", "none"].indexOf(cfg.bg) >= 0 ? cfg.bg : defaultBg
     readonly property string toneNow: ["primary", "secondary", "tertiary", "neutral"].indexOf(cfg.tone) >= 0 ? cfg.tone : tone
@@ -42,7 +46,8 @@ Item {
     readonly property color chip: Qt.alpha(fg, bare ? 0.16 : 0.1)            // неактивные кнопки и дорожки
 
     // цвет подложки: у стекла — матовая поверхность с оттенком контейнера, у M3 — сам контейнер
-    readonly property color tint: Theme.m3 ? container : Qt.tint(Theme.frost, Qt.alpha(container, 0.5))
+    readonly property color base: tintOverride.a > 0 ? tintOverride : container
+    readonly property color tint: Theme.m3 ? base : Qt.tint(Theme.frost, Qt.alpha(base, 0.5))
 
     ShaderEffect {
         id: glass
@@ -54,8 +59,14 @@ Item {
         property real radius: Math.min(s.radius, width / 2, height / 2)
         property real flipY: GraphicsInfo.api === GraphicsInfo.OpenGL ? 1 : 0
         property real solid: s.bg === "solid" ? 1 : 0
-        property real amount: s.bg === "solid" ? Math.max(0.05, s.alpha) : Math.max(0, Math.min(0.95, s.alpha))
+        // сплошная тема (прозрачность 100%) — сплошная подложка без просвета
+        property real amount: s.bg === "solid" ? Math.max(0.05, s.alpha) : Math.max(0, Math.min(1, s.alpha))
         property real sheen: Theme.m3 ? 0.3 : 1
+        // фигура: волна по кругу r = base + amp·cos(lobes·θ) — те же формулы, что у AodShape
+        property real shape: s.shape === "rect" ? 0 : s.shape === "squircle" ? 2 : 1
+        property real lobes: s.shape === "clover" ? 4 : s.shape === "hex" ? 6 : s.shape === "circle" ? 0 : s.lobes
+        property real base: s.shape === "clover" ? 0.82 : s.shape === "hex" ? 0.93 : s.shape === "circle" ? 1 : 0.94
+        property real amp: s.shape === "clover" ? 0.18 : s.shape === "hex" ? 0.07 : s.shape === "circle" ? 0 : 0.06
         property color tint: s.tint
         property var backdrop: Widgets.backdrop
         Behavior on amount { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
@@ -65,7 +76,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: !s.bare && !Widgets.backdrop
-        radius: Math.min(s.radius, width / 2, height / 2)
+        radius: s.shape === "rect" ? Math.min(s.radius, width / 2, height / 2) : width / 2
         color: Qt.alpha(s.tint, Math.max(0.3, s.alpha))
     }
 }
