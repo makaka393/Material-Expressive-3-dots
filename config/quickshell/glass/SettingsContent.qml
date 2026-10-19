@@ -10,7 +10,8 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? asPage.wantHeight : Theme.m3 ? 830 : 930
+    // не ниже меню слева: у выключенной Веги раздел короткий, и «Язык» вылезал за край окна
+    readonly property int wantHeight: Math.max(380, section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? asPage.wantHeight : Theme.m3 ? 830 : 930)
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
