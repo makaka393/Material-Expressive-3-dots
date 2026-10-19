@@ -832,7 +832,9 @@ Item {
         anchors { top: parent.top; bottom: parent.bottom; left: nav.right; right: parent.right; margins: 24; leftMargin: 8 }
         // по высоте, к которой идёт раскрытие, а не по текущей: окно и «Расширенные» растут одной пружинкой
         readonly property real advTarget: Assistant.cfg.advanced ? advCol.height + 6 : 0
-        readonly property int wantHeight: voiceOpen ? vcPane.wantHeight : Math.ceil(asCol.y + asCol.height - advBox.height + advTarget + 48)
+        readonly property int wantHeight: voiceOpen ? vcPane.wantHeight
+                                        : !Assistant.cfg.enabled ? Math.ceil(asPower.y + asPower.height + 48)
+                                        : Math.ceil(asCol.y + asCol.height - advBox.height + advTarget + 48)
         property bool voiceOpen: false                     // поверх раздела — выбор голоса
         onVisibleChanged: if (!visible) voiceOpen = false
         // прокрутка к «Расширенным» — только когда их включили руками, а не когда настройки дочитались из файла
@@ -853,7 +855,7 @@ Item {
             visible: opacity > 0.01
             transform: Translate { x: asPage.voiceOpen ? -48 : 0; Behavior on x { Anim { kind: "spatial" } } }
             Behavior on opacity { Anim { kind: "effects" } }
-            contentHeight: asCol.y + asCol.height + 8
+            contentHeight: Assistant.cfg.enabled ? asCol.y + asCol.height + 8 : asPower.y + asPower.height + 8
             interactive: contentHeight > height + 1
             boundsBehavior: Flickable.StopAtBounds
             clip: true
@@ -878,10 +880,39 @@ Item {
                                      "Say “Vega” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
             }
 
-            // ── состояние службы и ключа
+            // ── главный тумблер: Вега вообще включена
+            Rectangle {
+                id: asPower
+                anchors { top: asHead.bottom; topMargin: 16 }
+                width: parent.width; height: 64
+                radius: Assistant.cfg.enabled ? 22 : 32
+                color: Assistant.cfg.enabled ? Theme.primaryContainer : Theme.glassChip
+                Behavior on radius { Anim { kind: "fast" } }
+                Behavior on color { ColorAnimation { duration: 180 } }
+                Icon { id: apIcon; anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                       name: "power_settings_new"; size: 24; fill: Assistant.cfg.enabled ? 1 : 0
+                       color: Assistant.cfg.enabled ? Theme.primaryContainerFg : Theme.fg }
+                Column {
+                    anchors { left: apIcon.right; leftMargin: 14; right: apSw.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                    Label { width: parent.width; size: 16; weight: 750; color: Assistant.cfg.enabled ? Theme.primaryContainerFg : Theme.fg
+                            text: Assistant.cfg.enabled ? I18n.t("Вега включена", "Vega is on") : I18n.t("Вега выключена", "Vega is off") }
+                    Label { width: parent.width; size: 12
+                            color: Assistant.cfg.enabled ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
+                            text: Assistant.cfg.enabled ? I18n.t("Слушает имя и Super+A, отвечает", "Listens for her name and Super+A")
+                                : I18n.t("Служба остановлена: не слушает микрофон, память свободна", "Service stopped: no microphone, memory freed") }
+                }
+                M3Switch { id: apSw; anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                           checked: Assistant.cfg.enabled; onToggled: Assistant.setEnabled(!Assistant.cfg.enabled) }
+                MouseArea { anchors.fill: parent; z: -1; cursorShape: Qt.PointingHandCursor; onClicked: Assistant.setEnabled(!Assistant.cfg.enabled) }
+            }
+
+            // ── состояние службы и ключа (и всё остальное) — только когда включена
             Rectangle {
                 id: asStatus
-                anchors { top: asHead.bottom; topMargin: 16 }
+                anchors { top: asPower.bottom; topMargin: 12 }
+                opacity: Assistant.cfg.enabled ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity { Anim { kind: "effects" } }
                 width: parent.width; height: 56
                 radius: 20
                 color: Assistant.online && Assistant.hasKey ? Theme.primaryContainer : Theme.glassChip
@@ -904,6 +935,9 @@ Item {
                 id: asCol
                 anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
                 spacing: 10
+                opacity: Assistant.cfg.enabled ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity { Anim { kind: "effects" } }
 
                 // ── голос: выбор — на вкладке «Голос», здесь — какой сейчас и переход туда
                 Rectangle {

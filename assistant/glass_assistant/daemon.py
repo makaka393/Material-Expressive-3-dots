@@ -254,7 +254,8 @@ class Daemon:
     def _wake_paused(self):
         """Имя не ждём, когда служба слушает сама (вопрос, продолжение разговора) или слово выключено.
         Пока думает и говорит — ждём: позвал по имени — перебил."""
-        return not config.load()["wake"] or self.busy() and self.state in ("listening", "transcribing")
+        cfg = config.load()
+        return not cfg["wake"] or not cfg.get("enabled", True) or self.busy() and self.state in ("listening", "transcribing")
 
     def _echo(self, words, barge) -> bool:
         """Своё имя из колонок: пока говорит — если оно было в её речи, сразу после — если только что."""
@@ -446,6 +447,9 @@ class Daemon:
     async def command(self, msg):
         cmd = msg.get("cmd")
         cfg = config.load()
+        if cmd in ("ask", "listen") and not cfg.get("enabled", True):
+            await self.emit("error", text="Вега выключена — включить: Настройки → Ассистент")
+            return
         if cmd == "ask" and msg.get("text", "").strip():
             self.voice.stop()
             self.start(self.ask(msg["text"].strip(), voice=False, speak=msg.get("speak"), to=msg.get("to")))

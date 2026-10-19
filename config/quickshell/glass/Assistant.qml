@@ -94,26 +94,45 @@ Singleton {
         return true;
     }
     function fresh() { actions = []; windowed = false; }
+    // выключена в настройках — не спрашиваем, а говорим, где включить
+    function off() {
+        if (acfg.enabled) return false;
+        heard = ""; answer = "";
+        error = I18n.t("Вега выключена — включить: Настройки → Ассистент", "Vega is off — turn it on in Settings → Assistant");
+        linger.restart();
+        return true;
+    }
+    // главный тумблер: выключить — остановить службу и не запускать её при входе (память, микрофон, видеокарта
+    // свободны); включить — запустить и вернуть в автозапуск
+    function setEnabled(on) {
+        acfg.enabled = on;
+        svc.command = ["systemctl", "--user", on ? "enable" : "disable", "--now", "glass-assistant"];
+        svc.running = true;
+    }
+    Process { id: svc }
     // «??вопрос» — сразу Claude (в карточке лаунчера вопрос остаётся с «?», чтобы она узнала свой ответ)
     function ask(text) {
         if (text.trim() === "") return;
+        if (off()) return;
         heard = text.trim(); answer = ""; error = ""; backend = ""; voice = false; fresh();
         if (heard.startsWith("?")) send({ cmd: "ask", text: heard.slice(1).trim(), speak: cfg.speakTyped, to: "claude" });
         else send({ cmd: "ask", text: heard, speak: cfg.speakTyped });
     }
     function askClaude(text) {
         if (text.trim() === "") return;
+        if (off()) return;
         heard = text.trim(); answer = ""; error = ""; backend = ""; voice = false; fresh();
         send({ cmd: "ask", text: heard, speak: cfg.speakTyped, to: "claude" });
     }
     // вопрос «как голосом», но текстом: карточка в острове, ответ вслух (если включено)
     function askVoice(text) {
         if (text.trim() === "") return;
+        if (off()) return;
         heard = text.trim(); answer = ""; error = ""; backend = ""; voice = true; fresh();
         send({ cmd: "ask", text: heard, speak: cfg.speakVoice });
     }
-    function listen() { voice = true; if (!busy) { heard = ""; answer = ""; error = ""; fresh(); } send({ cmd: "listen" }); }
-    function listenClaude() { voice = true; if (!busy) { heard = ""; answer = ""; error = ""; fresh(); } send({ cmd: "listen", to: "claude" }); }
+    function listen() { if (off()) return; voice = true; if (!busy) { heard = ""; answer = ""; error = ""; fresh(); } send({ cmd: "listen" }); }
+    function listenClaude() { if (off()) return; voice = true; if (!busy) { heard = ""; answer = ""; error = ""; fresh(); } send({ cmd: "listen", to: "claude" }); }
     // локальная модель грузится ~2 с — начинаем, как только ясно, что сейчас спросят (режим «?» лаунчера)
     function warm() { if (sock.connected) send({ cmd: "warm" }); }
     function unload() { if (sock.connected) send({ cmd: "unload" }); }
@@ -150,6 +169,7 @@ Singleton {
             property real voiceHeight: 0                // −1 ниже … +1 выше
             property bool speakVoice: true
             property bool speakTyped: false
+            property bool enabled: true                 // главный тумблер: выключено — служба остановлена
             property bool wake: false
             property bool callVolumeOn: true            // позвали — громкость системы на callVolume %
             property real callVolume: 35
