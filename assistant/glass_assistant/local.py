@@ -57,7 +57,7 @@ def system(cfg) -> str:
     """Имя — одной строкой в конце: «Ты — <имя>…» в начале промпта делало модель болтливой, она отвечала словами
     вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с). Имя и память меняются редко — кэш не сбивается."""
     english = "\nОтвечай по-английски: выбран английский голос." if config.lang(cfg) == "en" else ""
-    return SYSTEM + f"\nТебя зовут {config.NAME}." + english + memory.store.prompt()
+    return SYSTEM + f"\nТебя зовут {config.NAME}." + english + config.about(cfg, short=True) + memory.store.prompt()
 
 
 class LocalServer:

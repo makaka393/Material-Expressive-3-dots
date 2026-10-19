@@ -229,6 +229,8 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         # только имя и только в конце: «Ты — <имя>… о себе в женском роде» в начале делало модель болтливой —
         # она отвечала словами вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с)
         self.assertIn("Тебя зовут Вега.", first)
+        self.assertIn("Болгарскую музыку не включай", first)
+        self.assertNotIn("неформально", first)          # стиль — только Claude: локальная от него болтает вместо вызовов
         self.assertNotIn("Ирис", first)
         self.assertNotIn("роде", first)
         self.assertTrue(first.startswith("Ты — голосовой ассистент"))

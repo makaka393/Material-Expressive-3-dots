@@ -89,7 +89,7 @@ class WikidataTest(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(p.stop)
 
     async def test_prefers_requested_kind(self):
-        self.assertEqual(await media.wikidata("Numb", "track"), {"uri": "spotify:track:trk2", "name": "Numb", "by": ""})
+        self.assertEqual(await media.wikidata("Numb", "track"), {"uri": "spotify:track:trk2", "name": "Numb", "by": "", "bg": False})
         self.assertEqual((await media.wikidata("Numb", "album"))["uri"], "spotify:album:alb1")
 
     async def test_any_prefers_artist(self):
@@ -118,3 +118,31 @@ class TokenTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoBulgarianTest(unittest.IsolatedAsyncioTestCase):
+    """Пользователь попросил: болгарскую музыку не включать никогда."""
+
+    async def test_query_word(self):
+        from glass_assistant.tools import media
+        r = await media.play_music({"query": "болгарская попса"})
+        self.assertFalse(r.ok)
+        self.assertIn("Болгарское", r.show)
+
+    async def test_found_bulgarian_not_played(self):
+        from glass_assistant.tools import media
+        launched = []
+        with patch.dict("os.environ", {"SPOTIFY_CLIENT_ID": "x", "SPOTIFY_CLIENT_SECRET": "y"}), \
+                patch.object(media, "search", AsyncMock(return_value={"uri": "spotify:artist:1", "name": "Азис", "by": "", "bg": True})), \
+                patch.object(media.base, "sh", AsyncMock(side_effect=lambda *a, **k: launched.append(a) or "")):
+            r = await media.play_music({"query": "Азис"})
+        self.assertFalse(r.ok)
+        self.assertEqual(launched, [])
+
+    async def test_wikidata_country(self):
+        from glass_assistant.tools import media
+        bg = {"claims": {"P27": [{"mainsnak": {"datavalue": {"value": {"id": "Q219"}}}}]}}
+        self.assertTrue(await media._wd_bulgarian(bg))
+        us = {"claims": {"P495": [{"mainsnak": {"datavalue": {"value": {"id": "Q30"}}}}]}}
+        self.assertFalse(await media._wd_bulgarian(us))
+

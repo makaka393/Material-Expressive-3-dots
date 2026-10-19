@@ -103,7 +103,7 @@ class ClaudeBrain:
                 system=SYSTEM.format(name=config.NAME,
                                      gender="женском" if config.female(cfg) else "мужском")
                        + ("\n- Отвечай по-английски: выбран английский голос." if config.lang(cfg) == "en" else "")
-                       + memory.store.prompt(),
+                       + config.about(cfg) + memory.store.prompt(),
                 tools=tools.anthropic_tools(),
                 messages=msgs,
             ) as stream:
