@@ -56,7 +56,8 @@ class Reply:
 def system(cfg) -> str:
     """Имя — одной строкой в конце: «Ты — <имя>…» в начале промпта делало модель болтливой, она отвечала словами
     вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с). Имя и память меняются редко — кэш не сбивается."""
-    return SYSTEM + f"\nТебя зовут {config.NAME}." + memory.store.prompt()
+    english = "\nОтвечай по-английски: выбран английский голос." if config.lang(cfg) == "en" else ""
+    return SYSTEM + f"\nТебя зовут {config.NAME}." + english + memory.store.prompt()
 
 
 class LocalServer:
@@ -134,10 +135,11 @@ class Gate:
     """Фильтр текста ответа: срезает метку «[дата, время]», которую модель любит повторять, и
     придерживает начало, пока не ясно, не пустое ли это обещание («Блокирую экран.»)."""
 
-    def __init__(self):
+    def __init__(self, english=False):
         self.buf = ""
         self.open = False
         self.claimed = False
+        self.english = english           # английский голос: латиница — это ответ, а не вызов текстом
 
     def feed(self, chunk: str) -> str:
         if self.open:
@@ -159,7 +161,7 @@ class Gate:
         return self._decide(STAMP.sub("", self.buf))
 
     def _decide(self, head: str) -> str:
-        if CLAIM.match(head) or (len(head.strip()) <= 60 and PSEUDO.fullmatch(head.strip())):
+        if CLAIM.match(head) or (not self.english and len(head.strip()) <= 60 and PSEUDO.fullmatch(head.strip())):
             self.claimed = True
             return ""
         self.open = True
@@ -184,7 +186,7 @@ class LocalBrain:
         cfg = config.load()
         if self.history and time.monotonic() - self.last > HISTORY_IDLE:
             self.history = []
-        about = intents.about(text)
+        about = intents.about(text, config.lang(cfg))
         if about:                                # «как тебя зовут» — без модели (intents.about)
             await on_delta(about)
             self.history = (self.history + [[{"role": "user", "content": self.stamp(text)},
@@ -201,7 +203,8 @@ class LocalBrain:
         user = {"role": "user", "content": self.stamp(text)}
         msgs = [{"role": "system", "content": system(cfg)}, *[m for turn in self.history for m in turn], user]
 
-        gate = Gate()
+        english = config.lang(cfg) == "en"
+        gate = Gate(english)
         shown = []
 
         async def on_text(chunk):
@@ -220,8 +223,9 @@ class LocalBrain:
             _, calls = await self._complete(msgs, None, tool_choice="required", extra=[NOTHING])
             if not calls or any(c["name"] == NOTHING["function"]["name"] for c in calls):
                 calls = []
-                shown = [CANT_TEXT]
-                await on_delta(CANT_TEXT)
+                cant = "I can't do that yet." if english else CANT_TEXT
+                shown = [cant]
+                await on_delta(cant)
 
         actions, results, read = [], [], False
         for i, c in enumerate(calls):

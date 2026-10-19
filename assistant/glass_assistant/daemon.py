@@ -387,10 +387,25 @@ class Daemon:
                 await self.emit("level", v=round(min(1.0, rms / 6000.0), 3))
         return more if spoke else []
 
+    def call_volume(self, cfg):
+        """Позвали (имя, Super+A) — громкость системы на удобную (настройка, по умолчанию 35 %)."""
+        if not cfg.get("call_volume_on", True):
+            return
+        level = max(0, min(100, int(cfg.get("call_volume") or 35)))
+        asyncio.create_task(self._set_volume(level))
+
+    async def _set_volume(self, level):
+        try:
+            await base.sh("wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{level / 100:.2f}")
+            await base.sh("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0")
+        except Exception as e:
+            print("громкость:", repr(e), flush=True)
+
     async def on_wake(self, text, cfg, before=True):
         rest = after_wake(text, config.wake_words(cfg), before)
         if rest is None:
             return
+        self.call_volume(cfg)
         await self.emit("heard", text=text)
         if cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))
@@ -438,6 +453,7 @@ class Daemon:
             if self.busy() or not self.voice.idle.is_set():
                 await self.command({"cmd": "stop"})
             else:
+                self.call_volume(cfg)
                 self.start(self.listen(cfg, to=msg.get("to")))
         elif cmd == "warm":
             asyncio.create_task(self.local.warm(cfg))

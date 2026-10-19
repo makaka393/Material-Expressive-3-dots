@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Ставит ассистента glass: Python-окружение (Claude SDK, PyTorch для процессора, scipy),
-# модели (Whisper large-v3-turbo q5_0, Silero v5_ru, Gemma 4 E4B Q4_K_M — локальная, отвечает по умолчанию),
+# модели (Whisper large-v3-turbo q5_0, Silero v5_ru, голоса Piper, Gemma 4 E4B Q4_K_M — локальная, отвечает по умолчанию),
 # whisper.cpp с CUDA и службу systemd --user. Повторный запуск докачивает недостающее.
 # Локальную модель запускает llama-server — пакет llama.cpp-cuda (AUR).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 A=${GLASS_ASSISTANT_DATA:-$HOME/.local/share/glass-assistant}
-mkdir -p "$A"/models/{llm,whisper,tts} "$A"/src "$A"/logs "$A"/app
+mkdir -p "$A"/models/{llm,whisper,tts/piper} "$A"/src "$A"/logs "$A"/app
 
 get() {   # get URL FILE
     [ -s "$2" ] && return 0
@@ -16,12 +16,21 @@ get() {   # get URL FILE
 
 echo "== Python"
 [ -x "$A/venv/bin/python" ] || python3 -m venv --system-site-packages "$A/venv"
-"$A/venv/bin/pip" install -q --upgrade anthropic scipy
+"$A/venv/bin/pip" install -q --upgrade anthropic scipy piper-tts
 "$A/venv/bin/pip" install -q torch --index-url https://download.pytorch.org/whl/cpu
 
 echo "== Модели"
 get https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin "$A/models/whisper/ggml-large-v3-turbo-q5_0.bin"
 get https://models.silero.ai/models/tts/ru/v5_ru.pt "$A/models/tts/v5_ru.pt"
+# ещё голоса — Piper (rhasspy/piper-voices): 4 русских и 4 английских, по ~63 МБ
+for v in ru/ru_RU/irina/medium/ru_RU-irina-medium ru/ru_RU/denis/medium/ru_RU-denis-medium \
+         ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium \
+         en/en_US/lessac/medium/en_US-lessac-medium en/en_US/ryan/medium/en_US-ryan-medium \
+         en/en_GB/alba/medium/en_GB-alba-medium en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium; do
+    for ext in onnx onnx.json; do
+        get "https://huggingface.co/rhasspy/piper-voices/resolve/main/$v.$ext" "$A/models/tts/piper/$(basename "$v").$ext"
+    done
+done
 get https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf "$A/models/llm/gemma-4-E4B-it-Q4_K_M.gguf"
 command -v llama-server >/dev/null || echo "!! нет llama-server — поставь llama.cpp-cuda (AUR), иначе ответит только Claude"
 

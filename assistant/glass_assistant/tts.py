@@ -25,8 +25,8 @@ def _num(v, lo, hi, default):
 
 
 def voice_of(cfg):
-    """(голос, тон, скорость, высота) из настроек — ползунки «Ассистента»."""
-    return (cfg.get("voice") or "xenia", _num(cfg.get("voice_tone"), -1, 1, 0.0),
+    """(голос, тон, скорость, высота) из настроек — вкладка «Голос»."""
+    return (config.voice_id(cfg), _num(cfg.get("voice_tone"), -1, 1, 0.0),
             _num(cfg.get("voice_speed"), 0.75, 1.35, 1.0), _num(cfg.get("voice_height"), -1, 1, 0.0))
 
 
@@ -102,6 +102,7 @@ class Voice:
         self.tasks = None
         self.said = collections.deque(maxlen=12)   # (время, текст): что звучало — эхо из колонок не перебивает
         self.idle_at = 0.0                         # когда замолчала
+        self.piper = {}                            # модель → PiperVoice
 
     def _load(self, path):
         import torch
@@ -110,13 +111,26 @@ class Voice:
         model.to(torch.device("cpu"))
         return model
 
+    def _piper_voice(self, model):
+        """Голос Piper — грузится при первом обращении (~2 с) и остаётся в памяти (~70 МБ)."""
+        if model not in self.piper:
+            from piper import PiperVoice
+            self.piper[model] = PiperVoice.load(str(config.PIPER / f"{model}.onnx"))
+        return self.piper[model]
+
     async def ready(self, cfg):
-        if self.model is None:
+        if self.model is None:           # Silero нужен всегда: и свои голоса, и русские фразы английских
             self.model = await asyncio.to_thread(self._load, cfg["tts_model"])
             try:                         # первый синтез после загрузки в разы медленнее — сделать его сразу
-                await asyncio.to_thread(self._synth, "Привет.", voice_of(cfg))
+                await asyncio.to_thread(self._synth, "Привет.", ("xenia", 0.0, 1.0, 0.0))
             except Exception as e:
                 print("tts: разогрев:", e, flush=True)
+        info = config.voice(cfg)
+        if info.engine == "piper" and info.model not in self.piper:
+            try:
+                await asyncio.to_thread(self._synth, "Hi." if info.lang == "en" else "Привет.", voice_of(cfg))
+            except Exception as e:
+                print("tts: piper:", repr(e), flush=True)
         if self.tasks is None:
             self.tasks = [asyncio.create_task(self._synth_loop()), asyncio.create_task(self._play_loop())]
 
@@ -126,6 +140,8 @@ class Voice:
             "--media-role", "Assistant", "-", stdin=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
 
     def _synth(self, text, voice):
+        if config.VOICES[voice[0]].engine == "piper":
+            return self._synth_piper(text, voice)
         speaker, tone, speed, height = voice
         pitch, rate = prosody(tone, speed, height)
         if (pitch, rate) == (0, 100):
@@ -140,15 +156,40 @@ class Voice:
             audio = self.model.apply_tts(**src, speaker=speaker, sample_rate=RATE)
         return shape(audio.numpy().astype("float32"), tone).tobytes()
 
+    def _synth_piper(self, text, voice):
+        """Piper: скорость — длиной звуков, высота — проигрываем быстрее в p раз (выше на p), а длину заранее
+        растянули на столько же; тон — тем же тембром, что у Silero."""
+        import numpy as np
+        from fractions import Fraction
+        from piper import SynthesisConfig
+        from scipy.signal import resample_poly
+        vid, tone, speed, height = voice
+        pv = self._piper_voice(config.VOICES[vid].model)
+        pitch, rate = prosody(tone, speed, height)
+        p, r = 1 + pitch / 100, rate / 100
+        syn = SynthesisConfig(length_scale=(pv.config.length_scale or 1.0) * p / r)
+        chunks = [c.audio_float_array for c in pv.synthesize(text, syn_config=syn)]
+        if not chunks:
+            raise ValueError("пусто")
+        f = Fraction(RATE / (pv.config.sample_rate * p)).limit_denominator(400)
+        audio = resample_poly(np.concatenate(chunks), f.numerator, f.denominator).astype(np.float32)
+        audio *= 0.8 / max(float(np.abs(audio).max()), 1e-6)     # Piper тянет пики к 1,0 — громче Silero (~0,8)
+        return shape(audio, tone).tobytes()
+
     async def say(self, text: str, cfg):
-        """В очередь на озвучку (одно предложение или фраза)."""
-        text = speakable(text)
+        """В очередь на озвучку (одно предложение или фраза). У английского голоса русская фраза (подтверждение
+        инструмента: «Громкость 35%») звучит голосом Silero того же пола — английский её не прочтёт."""
+        voice = voice_of(cfg)
+        info = config.VOICES[voice[0]]
+        if info.lang == "en" and len(CYR.findall(text)) > len(LAT.findall(text)):
+            voice, info = ("xenia" if info.female else "aidar",) + voice[1:], config.VOICES["xenia"]
+        text = speakable(text, info.engine, info.lang)
         if not text:
             return
         await self.ready(cfg)
         self.said.append((time.monotonic(), text))
         self.idle.clear()
-        await self.texts.put((self.gen, text, voice_of(cfg)))
+        await self.texts.put((self.gen, text, voice))
 
     def _more(self):
         return not self.texts.empty() or self.synthesizing or not self.pcms.empty()
@@ -303,14 +344,24 @@ def _latin(m) -> str:
     return re.sub(r"(?<=[бвгджзклмнпрстфхцчшщ])и(?=[аоуэ])", "й", out)
 
 
-def speakable(text: str) -> str:
-    """Убрать то, что вслух не читают (разметку, ссылки, эмодзи), латиницу — русскими буквами, а числа —
-    словами: Silero цифры глотает. Имени — ударение: «В+ега», а не «Вег+а»."""
+CYR = re.compile(r"[А-Яа-яЁё]")
+LAT = re.compile(r"[A-Za-z]")
+
+
+def speakable(text: str, engine: str = "silero", lang: str = "ru") -> str:
+    """Убрать то, что вслух не читают (разметку, ссылки, эмодзи). По-русски ещё латиницу — русскими буквами,
+    а числа — словами: Silero цифры глотает; ему же ударение в имени: «В+ега», а не «Вег+а» (Piper «+» не
+    понимает). По-английски Piper сам читает и числа."""
     t = re.sub(r"https?://\S+", "", text)
     t = re.sub(r"`{1,3}[^`]*`{1,3}", "", t)
     t = re.sub(r"[*_#>|~^]+", "", t)
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿]", "", t)
     t = t.replace("—", ", ").replace("–", ", ")
+    if lang == "en":
+        return " ".join(t.split()).strip()
     t = LATIN_RX.sub(_latin, t)
-    t = re.sub(r"(?<![\w+])(В|в)ег(а|у|е|ой|и)(?!\w)", r"\1+ег\2", t)
+    if engine == "silero":
+        t = re.sub(r"(?<![\w+])(В|в)ег(а|у|е|ой|и)(?!\w)", r"\1+ег\2", t)
+    else:
+        t = t.replace("+", "")
     return spoken(" ".join(t.split()).strip())

@@ -110,13 +110,13 @@ NAME_Q = re.compile(r"(а )?(как )?(тебя|вас) зовут|как (тв�
 WHO_Q = re.compile(r"(а )?(кто ты|ты кто)( такая| такой| вообще)?|с кем я (говорю|разговариваю)")
 
 
-def about(text: str) -> str | None:
+def about(text: str, lang: str = "ru") -> str | None:
     """Ответ на «как тебя зовут» / «кто ты», если фраза целиком об этом; иначе None."""
     t = _norm(text)
     if NAME_Q.fullmatch(t):
-        return f"Меня зовут {config.NAME}."
+        return "My name is Vega." if lang == "en" else f"Меня зовут {config.NAME}."
     if WHO_Q.fullmatch(t):
-        return f"Я {config.NAME} — твой ассистент на этом компьютере."
+        return "I'm Vega, your assistant on this computer." if lang == "en" else f"Я {config.NAME} — твой ассистент на этом компьютере."
     return None
 
 

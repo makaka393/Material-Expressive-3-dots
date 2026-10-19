@@ -5,6 +5,7 @@
 import json
 import os
 import re
+from collections import namedtuple
 from pathlib import Path
 
 HOME = Path.home()
@@ -25,6 +26,8 @@ DEFAULTS = {
     "voice_speed": 1.0,          # скорость: 0,75 … 1,35
     "voice_height": 0.0,         # высота: −1 ниже … +1 выше (±15 %)
     "wake": False,               # слушать имя
+    "call_volume_on": True,      # при вызове (имя, Super+A) ставить громкость системы
+    "call_volume": 35,           # %, — удобная пользователю
     "follow_up": True,           # после голосового ответа слушать продолжение без имени
     "pause": 2.0,                # с тишины — конец фразы (1,5 / 2 / 3)
     "wake_words": [],            # ещё слова-активаторы, кроме имени; сравниваются по звучанию (router.wake)
@@ -45,7 +48,38 @@ DEFAULTS = {
 # «Вега» — 37 из 40 и 69 из 90 с сильным шумом («Ирис» — 64: «И рис», «Ирина»)
 NAME = "Вега"
 NAME_HEARD = ["вега", "vega"]
-FEMALE = {"xenia", "kseniya", "baya"}         # голоса Silero; aidar, eugene — мужские
+# Голоса: Silero v5_ru (5 своих, лучшие ударения) и Piper — по файлу models/tts/piper/<model>.onnx (rhasspy/piper-voices).
+# Английские отвечают по-английски; русские фразы (подтверждения инструментов) у них звучат голосом Silero того же пола
+VoiceInfo = namedtuple("VoiceInfo", "engine lang female model")
+VOICES = {
+    "xenia": VoiceInfo("silero", "ru", True, None), "kseniya": VoiceInfo("silero", "ru", True, None),
+    "baya": VoiceInfo("silero", "ru", True, None), "aidar": VoiceInfo("silero", "ru", False, None),
+    "eugene": VoiceInfo("silero", "ru", False, None),
+    "irina": VoiceInfo("piper", "ru", True, "ru_RU-irina-medium"), "denis": VoiceInfo("piper", "ru", False, "ru_RU-denis-medium"),
+    "dmitri": VoiceInfo("piper", "ru", False, "ru_RU-dmitri-medium"), "ruslan": VoiceInfo("piper", "ru", False, "ru_RU-ruslan-medium"),
+    "lessac": VoiceInfo("piper", "en", True, "en_US-lessac-medium"), "ryan": VoiceInfo("piper", "en", False, "en_US-ryan-medium"),
+    "alba": VoiceInfo("piper", "en", True, "en_GB-alba-medium"),
+    "northern": VoiceInfo("piper", "en", False, "en_GB-northern_english_male-medium"),
+}
+PIPER = DATA / "models/tts/piper"
+
+
+def voice(cfg_or_id) -> VoiceInfo:
+    vid = cfg_or_id if isinstance(cfg_or_id, str) else cfg_or_id.get("voice", DEFAULTS["voice"])
+    info = VOICES.get(vid)
+    if info is None or info.model and not (PIPER / f"{info.model}.onnx").exists():
+        return VOICES[DEFAULTS["voice"]]                 # неизвестный или не скачанный — голос по умолчанию
+    return info
+
+
+def voice_id(cfg) -> str:
+    vid = cfg.get("voice", DEFAULTS["voice"])
+    return vid if voice(vid) is VOICES.get(vid) else DEFAULTS["voice"]
+
+
+def lang(cfg) -> str:
+    """Язык ответов: английский голос — по-английски."""
+    return voice(cfg).lang
 
 
 def wake_words(cfg) -> list:
@@ -53,7 +87,7 @@ def wake_words(cfg) -> list:
 
 
 def female(cfg) -> bool:
-    return cfg.get("voice", DEFAULTS["voice"]) in FEMALE
+    return voice(cfg).female
 
 
 def load() -> dict:

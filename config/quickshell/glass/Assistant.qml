@@ -14,6 +14,23 @@ Singleton {
 
     // имя — одно, оно же слово-активатор (assistant/glass_assistant/config.py: NAME)
     readonly property string name: I18n.t("Вега", "Vega")
+    // голоса — как VOICES в config.py: Silero (свои 5) и Piper; английские отвечают по-английски
+    readonly property var voices: [
+        { id: "xenia", ru: "Шёлк", en: "Silk", lang: "ru", female: true },
+        { id: "kseniya", ru: "Мята", en: "Mint", lang: "ru", female: true },
+        { id: "baya", ru: "Карамель", en: "Caramel", lang: "ru", female: true },
+        { id: "irina", ru: "Лён", en: "Linen", lang: "ru", female: true },
+        { id: "aidar", ru: "Бархат", en: "Velvet", lang: "ru", female: false },
+        { id: "eugene", ru: "Гранит", en: "Granite", lang: "ru", female: false },
+        { id: "denis", ru: "Кедр", en: "Cedar", lang: "ru", female: false },
+        { id: "dmitri", ru: "Сталь", en: "Steel", lang: "ru", female: false },
+        { id: "ruslan", ru: "Янтарь", en: "Amber", lang: "ru", female: false },
+        { id: "lessac", ru: "Мёд", en: "Honey", lang: "en", female: true, accent: "us" },
+        { id: "alba", ru: "Вереск", en: "Heather", lang: "en", female: true, accent: "scot" },
+        { id: "ryan", ru: "Графит", en: "Graphite", lang: "en", female: false, accent: "us" },
+        { id: "northern", ru: "Дым", en: "Smoke", lang: "en", female: false, accent: "uk" }
+    ]
+    function voiceInfo(id) { return voices.find(v => v.id === id) || voices[0]; }
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/glass-assistant.sock"
     readonly property bool online: sock.connected
     property string state: "idle"          // idle | listening | transcribing | thinking | speaking
@@ -108,7 +125,8 @@ Singleton {
     // новое прослушивание обрывает прошлое. Фраза всегда русская: Silero говорит только по-русски
     function preview() {
         if (!sock.connected) return;
-        send({ cmd: "say", preview: true, text: "Привет! Я Вега. Так будет звучать мой голос.",
+        const en = voiceInfo(acfg.voice).lang === "en";
+        send({ cmd: "say", preview: true, text: en ? "Hi! I'm Vega. This is how my voice will sound." : "Привет! Я Вега. Так будет звучать мой голос.",
                voice: acfg.voice, tone: acfg.voiceTone, speed: acfg.voiceSpeed, height: acfg.voiceHeight });
     }
     function reset() { send({ cmd: "reset" }); heard = ""; answer = ""; }
@@ -135,6 +153,8 @@ Singleton {
             property bool speakVoice: true
             property bool speakTyped: false
             property bool wake: false
+            property bool callVolumeOn: true            // позвали — громкость системы на callVolume %
+            property real callVolume: 35
             property bool followUp: true                // после голосового ответа слушать продолжение
             property real pause: 2.0                    // с тишины — конец фразы
             property var wakeWords: []                  // ещё слова-активаторы, кроме имени

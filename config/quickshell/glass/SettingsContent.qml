@@ -10,7 +10,7 @@ Item {
     signal close()
     property string section: "look"
     // высота окна под раздел: AOD длинный (два ряда часов), «Язык» короткий
-    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? asPage.wantHeight : Theme.m3 ? 830 : 930
+    readonly property int wantHeight: section === "aod" ? 840 : section === "lang" ? 380 : section === "assistant" ? asPage.wantHeight : section === "voice" ? vcPage.wantHeight : Theme.m3 ? 830 : 930
 
     readonly property string wallSrc: Quickshell.env("HOME") + "/.cache/matugen/wallpaper"
     readonly property string frameSrc: Quickshell.env("HOME") + "/.cache/matugen/frame.png"
@@ -250,6 +250,51 @@ Item {
         MouseArea { anchors.fill: parent; z: -1; cursorShape: Qt.PointingHandCursor; onClicked: Assistant.cfg[ao.k] = !ao.on }
     }
 
+    // ── карточка голоса (вкладка «Голос»)
+    component VoiceCard: Rectangle {
+        id: vc
+        required property var modelData
+        readonly property bool on: Assistant.cfg.voice === modelData.id
+        width: (vcCol.width - 20) / 3; height: 64
+        radius: vcMouse.pressed ? 14 : on ? 24 : 18
+        color: on ? Theme.primaryContainer : vcMouse.containsMouse ? Qt.alpha(Theme.fg, 0.14) : Theme.glassChip
+        border.width: on ? 2 : 0; border.color: Theme.primary
+        scale: vcMouse.pressed ? 0.97 : 1
+        Behavior on radius { Anim { kind: "fast" } }
+        Behavior on color { ColorAnimation { duration: 160 } }
+        Behavior on scale { Anim { kind: "fast" } }
+        Icon { id: vcIcon; anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+               name: vc.modelData.female ? "face_3" : "face_6"; size: 22; fill: vc.on ? 1 : 0
+               color: vc.on ? Theme.primaryContainerFg : Theme.fg }
+        Column {
+            anchors { left: vcIcon.right; leftMargin: 10; right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+            spacing: 1
+            Label { width: parent.width; text: I18n.t(vc.modelData.ru, vc.modelData.en); size: 14; weight: 700
+                    color: vc.on ? Theme.primaryContainerFg : Theme.fg }
+            Label { width: parent.width; size: 11
+                    color: vc.on ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
+                    text: (vc.modelData.female ? I18n.t("женский", "female") : I18n.t("мужской", "male"))
+                          + (vc.modelData.accent === "us" ? I18n.t(" · американский", " · American")
+                             : vc.modelData.accent === "uk" ? I18n.t(" · британский", " · British")
+                             : vc.modelData.accent === "scot" ? I18n.t(" · шотландский", " · Scottish") : "") }
+        }
+        MouseArea { id: vcMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: { Assistant.cfg.voice = vc.modelData.id; root.voiceDone(); } }
+    }
+
+    // ── голос: прослушать через миг после движения ползунка, отпустил — сразу (вкладки «Голос» и «Ассистент»)
+    Timer { id: previewSoon; interval: 380; onTriggered: Assistant.preview() }
+    function voiceChanged() { previewSoon.restart(); }
+    function voiceDone() { previewSoon.stop(); Assistant.preview(); }
+    // 1,1× / 1.1×
+    function num(v, digits) { const t = v.toFixed(digits); return Config.lang === "en" ? t : t.replace(".", ","); }
+    function toneText(v) {
+        const i = Math.round(v * 2) + 2;
+        return [I18n.t("мягкий", "soft"), I18n.t("мягче", "softer"), I18n.t("обычный", "normal"),
+                I18n.t("твёрже", "firmer"), I18n.t("твёрдый", "firm")][Math.max(0, Math.min(4, i))];
+    }
+    function voiceName(id) { const v = Assistant.voiceInfo(id); return I18n.t(v.ru, v.en); }
+
     // ── слева: разделы
     Item {
         id: nav
@@ -269,6 +314,7 @@ Item {
                 model: [{ id: "look", icon: "palette", t: I18n.t("Оформление", "Appearance") },
                         { id: "aod", icon: "bedtime", t: "Always On Display" },
                         { id: "assistant", icon: "auto_awesome", t: I18n.t("Ассистент", "Assistant") },
+                        { id: "voice", icon: "record_voice_over", t: I18n.t("Голос", "Voice") },
                         { id: "lang", icon: "translate", t: I18n.t("Язык", "Language") }]
                 Rectangle {
                     id: navItem
@@ -788,17 +834,10 @@ Item {
         // по высоте, к которой идёт раскрытие, а не по текущей: окно и «Расширенные» растут одной пружинкой
         readonly property real advTarget: Assistant.cfg.advanced ? advCol.height + 6 : 0
         readonly property int wantHeight: Math.ceil(asCol.y + asCol.height - advBox.height + advTarget + 48)
+        // прокрутка к «Расширенным» — только когда их включили руками, а не когда настройки дочитались из файла
+        property bool settled: false
+        Timer { running: true; interval: 800; onTriggered: asPage.settled = true }
 
-        // 1,1× / 1.1×
-        function num(v, digits) { const t = v.toFixed(digits); return Config.lang === "en" ? t : t.replace(".", ","); }
-        function toneText(v) {
-            const i = Math.round(v * 2) + 2;
-            return [I18n.t("мягкий", "soft"), I18n.t("мягче", "softer"), I18n.t("обычный", "normal"),
-                    I18n.t("твёрже", "firmer"), I18n.t("твёрдый", "firm")][Math.max(0, Math.min(4, i))];
-        }
-        Timer { id: previewSoon; interval: 380; onTriggered: Assistant.preview() }
-        function changed() { previewSoon.restart(); }
-        function done() { previewSoon.stop(); Assistant.preview(); }
 
         IconButton {
             anchors { top: parent.top; right: parent.right; topMargin: -6; rightMargin: -6 }
@@ -817,7 +856,7 @@ Item {
             // раскрыл «Расширенные», а окно уже во весь экран — когда раскроются, доехать до них
             Connections {
                 target: Assistant.cfg
-                function onAdvancedChanged() { if (Assistant.cfg.advanced) advScroll.restart(); else asFlick.contentY = 0; }
+                function onAdvancedChanged() { if (!asPage.settled) return; if (Assistant.cfg.advanced) advScroll.restart(); else asFlick.contentY = 0; }
             }
             Timer {
                 id: advScroll; interval: Theme.durSpatial + 60
@@ -861,52 +900,51 @@ Item {
                 anchors { top: asStatus.bottom; topMargin: 18; left: parent.left; right: parent.right }
                 spacing: 10
 
-                // ── голос: 3 женских и 2 мужских Silero; выбор сразу звучит
-                Item {
-                    width: parent.width; height: 30
-                    Label { anchors { left: parent.left; bottom: parent.bottom } text: I18n.t("Голос", "Voice"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-                    Rectangle {
-                        anchors { right: parent.right; bottom: parent.bottom }
-                        width: hearRow.implicitWidth + 24; height: 30; radius: hearMouse.pressed ? 10 : 15
-                        color: Theme.primary
-                        Behavior on radius { Anim { kind: "fast" } }
-                        Row { id: hearRow; anchors.centerIn: parent; spacing: 6
-                              Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
-                              Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
-                        MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: asPage.done() }
+                // ── голос: выбор — на вкладке «Голос», здесь — какой сейчас и переход туда
+                Rectangle {
+                    id: voiceRow
+                    width: parent.width; height: 64
+                    radius: vrMouse.pressed ? 16 : 22
+                    color: vrMouse.containsMouse ? Qt.alpha(Theme.fg, 0.14) : Theme.glassChip
+                    Behavior on radius { Anim { kind: "fast" } }
+                    Behavior on color { ColorAnimation { duration: 160 } }
+                    Icon { id: vrIcon; anchors { left: parent.left; leftMargin: 18; verticalCenter: parent.verticalCenter }
+                           name: Assistant.voiceInfo(Assistant.cfg.voice).female ? "face_3" : "face_6"; size: 24; fill: 1; color: Theme.primaryText }
+                    Column {
+                        anchors { left: vrIcon.right; leftMargin: 14; right: vrPlay.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                        spacing: 2
+                        Label { text: I18n.t("Голос · ", "Voice · ") + root.voiceName(Assistant.cfg.voice); size: 15; weight: 700; elide: Text.ElideRight; width: parent.width }
+                        Label { width: parent.width; size: 12; color: Theme.fgVariant
+                                text: I18n.t("тон ", "tone ") + root.toneText(Assistant.cfg.voiceTone) + " · " + root.num(Assistant.cfg.voiceSpeed, 2).replace(/0$/, "") + "×"
+                                      + (Assistant.voiceInfo(Assistant.cfg.voice).lang === "en" ? I18n.t(" · отвечает по-английски", " · answers in English") : "") }
                     }
-                }
-                // женские (face_3) и мужские (face_6) — одним рядом
-                TunerChoice {
-                    width: parent.width
-                    options: [{ id: "xenia", icon: "face_3", t: I18n.t("Шёлк", "Silk") }, { id: "kseniya", icon: "face_3", t: I18n.t("Мята", "Mint") },
-                              { id: "baya", icon: "face_3", t: I18n.t("Карамель", "Caramel") },
-                              { id: "aidar", icon: "face_6", t: I18n.t("Бархат", "Velvet") }, { id: "eugene", icon: "face_6", t: I18n.t("Гранит", "Granite") }]
-                    current: Assistant.cfg.voice
-                    onPicked: v => { Assistant.cfg.voice = v; asPage.done(); }
+                    IconButton { id: vrPlay; anchors { right: vrGo.left; verticalCenter: parent.verticalCenter }
+                                 icon: "volume_up"; size: 40; iconSize: 20; color: Theme.primaryText; onClicked: root.voiceDone() }
+                    Icon { id: vrGo; anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                           name: "chevron_right"; size: 24; color: Theme.fgVariant }
+                    MouseArea { id: vrMouse; anchors.fill: parent; z: -1; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.section = "voice" }
                 }
 
-                // ── тон и скорость — как в Siri: ползунки, превью звучит прямо на ходу
-                VoiceSlider {
+                // ── позвали — громкость системы на удобную
+                AsOption { width: parent.width; k: "callVolumeOn"; icon: "volume_down"
+                           text: I18n.t("Громкость при вызове — ", "Volume when called — ") + Math.round(Assistant.cfg.callVolume) + "%" }
+                Item {
                     width: parent.width
-                    topPadding: 8
-                    title: I18n.t("Тон", "Tone")
-                    valueText: asPage.toneText(Assistant.cfg.voiceTone)
-                    low: I18n.t("мягче", "softer"); high: I18n.t("твёрже", "firmer")
-                    from: -1; to: 1; origin: 0; step: 0.25
-                    value: Assistant.cfg.voiceTone
-                    onMoved: v => { Assistant.cfg.voiceTone = v; asPage.changed(); }
-                    onReleased: asPage.done()
-                }
-                VoiceSlider {
-                    width: parent.width
-                    title: I18n.t("Скорость", "Speed")
-                    valueText: asPage.num(Assistant.cfg.voiceSpeed, 2).replace(/0$/, "") + "×"
-                    low: I18n.t("медленнее", "slower"); high: I18n.t("быстрее", "faster")
-                    from: 0.75; to: 1.35; origin: 1.0; step: 0.05
-                    value: Assistant.cfg.voiceSpeed
-                    onMoved: v => { Assistant.cfg.voiceSpeed = Math.round(v * 100) / 100; asPage.changed(); }
-                    onReleased: asPage.done()
+                    height: Assistant.cfg.callVolumeOn ? 48 : 0
+                    opacity: Assistant.cfg.callVolumeOn ? 1 : 0
+                    visible: height > 0.5
+                    clip: true
+                    Behavior on height { Anim { kind: "spatial" } }
+                    Behavior on opacity { Anim { kind: "effects" } }
+                    BigSlider {
+                        width: parent.width
+                        icon: "volume_up"
+                        from: 5; to: 100; step: 5
+                        value: Assistant.cfg.callVolume
+                        text: Math.round(Assistant.cfg.callVolume) + "%"
+                        onMoved: v => Assistant.cfg.callVolume = Math.round(v)
+                    }
                 }
 
                 Item { width: 1; height: 2 }
@@ -933,18 +971,7 @@ Item {
                         y: 6
                         width: parent.width
                         spacing: 10
-                        VoiceSlider {
-                            width: parent.width
-                            title: I18n.t("Высота голоса", "Pitch")
-                            valueText: Math.abs(Assistant.cfg.voiceHeight) < 0.01 ? I18n.t("обычная", "normal")
-                                     : (Assistant.cfg.voiceHeight > 0 ? "+" : "−") + Math.round(Math.abs(Assistant.cfg.voiceHeight) * 15) + "%"
-                            low: I18n.t("ниже", "lower"); high: I18n.t("выше", "higher")
-                            from: -1; to: 1; origin: 0; step: 0.25
-                            value: Assistant.cfg.voiceHeight
-                            onMoved: v => { Assistant.cfg.voiceHeight = v; asPage.changed(); }
-                            onReleased: asPage.done()
-                        }
-                        Label { topPadding: 6; text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                        Label { text: I18n.t("Модель Claude", "Claude model"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
                         TunerChoice {
                             width: parent.width
                             options: [{ id: "claude-opus-5-5", icon: "psychology", t: "Opus 5.5" },
@@ -978,6 +1005,99 @@ Item {
                                    text: I18n.t("Разговор: после ответа слушать продолжение без имени",
                                                 "Conversation: after an answer, keep listening without the name") }
                     }
+                }
+            }
+        }
+    }
+
+    // ── справа: раздел «Голос» — карточки голосов по языкам и ползунки; выбор и ползунки звучат сразу
+    Item {
+        id: vcPage
+        visible: root.section === "voice"
+        anchors { top: parent.top; bottom: parent.bottom; left: nav.right; right: parent.right; margins: 24; leftMargin: 8 }
+        readonly property int wantHeight: Math.ceil(vcCol.y + vcCol.height + 48)
+
+        IconButton {
+            anchors { top: parent.top; right: parent.right; topMargin: -6; rightMargin: -6 }
+            z: 1
+            icon: "close"; size: 40; iconSize: 22
+            onClicked: root.close()
+        }
+        Flickable {
+            anchors.fill: parent
+            contentHeight: vcCol.y + vcCol.height + 8
+            interactive: contentHeight > height + 1
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+
+            Column {
+                id: vcHead
+                width: parent.width - 60
+                spacing: 4
+                Label { text: I18n.t("Голос", "Voice"); size: 26; weight: 750; elide: Text.ElideNone }
+                Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
+                        text: I18n.t("Как звучит " + Assistant.name + ". Нажми на голос — сразу услышишь. С английским голосом она отвечает по-английски.",
+                                     "How " + Assistant.name + " sounds. Tap a voice to hear it. With an English voice she answers in English.") }
+            }
+            Column {
+                id: vcCol
+                anchors { top: vcHead.bottom; topMargin: 18; left: parent.left; right: parent.right }
+                spacing: 10
+                Label { text: I18n.t("Русские", "Russian"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                Flow {
+                    width: parent.width; spacing: 10
+                    Repeater { model: Assistant.voices.filter(v => v.lang === "ru"); VoiceCard {} }
+                }
+                Label { topPadding: 6; text: "English"; size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
+                Flow {
+                    width: parent.width; spacing: 10
+                    Repeater { model: Assistant.voices.filter(v => v.lang === "en"); VoiceCard {} }
+                }
+
+                // ── тон, скорость, высота — как в Siri: превью звучит прямо на ходу
+                Item {
+                    width: parent.width; height: 40
+                    Rectangle {
+                        anchors { right: parent.right; bottom: parent.bottom }
+                        width: hearRow.implicitWidth + 24; height: 30; radius: hearMouse.pressed ? 10 : 15
+                        color: Theme.primary
+                        Behavior on radius { Anim { kind: "fast" } }
+                        Row { id: hearRow; anchors.centerIn: parent; spacing: 6
+                              Icon { anchors.verticalCenter: parent.verticalCenter; name: "volume_up"; size: 16; fill: 1; color: Theme.primaryFg }
+                              Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Прослушать", "Preview"); size: 12; weight: 750; color: Theme.primaryFg; elide: Text.ElideNone } }
+                        MouseArea { id: hearMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.voiceDone() }
+                    }
+                }
+                VoiceSlider {
+                    width: parent.width
+                    title: I18n.t("Тон", "Tone")
+                    valueText: root.toneText(Assistant.cfg.voiceTone)
+                    low: I18n.t("мягче", "softer"); high: I18n.t("твёрже", "firmer")
+                    from: -1; to: 1; origin: 0; step: 0.25
+                    value: Assistant.cfg.voiceTone
+                    onMoved: v => { Assistant.cfg.voiceTone = v; root.voiceChanged(); }
+                    onReleased: root.voiceDone()
+                }
+                VoiceSlider {
+                    width: parent.width
+                    title: I18n.t("Скорость", "Speed")
+                    valueText: root.num(Assistant.cfg.voiceSpeed, 2).replace(/0$/, "") + "×"
+                    low: I18n.t("медленнее", "slower"); high: I18n.t("быстрее", "faster")
+                    from: 0.75; to: 1.35; origin: 1.0; step: 0.05
+                    value: Assistant.cfg.voiceSpeed
+                    onMoved: v => { Assistant.cfg.voiceSpeed = Math.round(v * 100) / 100; root.voiceChanged(); }
+                    onReleased: root.voiceDone()
+                }
+                VoiceSlider {
+                    width: parent.width
+                    title: I18n.t("Высота", "Pitch")
+                    valueText: Math.abs(Assistant.cfg.voiceHeight) < 0.01 ? I18n.t("обычная", "normal")
+                             : (Assistant.cfg.voiceHeight > 0 ? "+" : "−") + Math.round(Math.abs(Assistant.cfg.voiceHeight) * 15) + "%"
+                    low: I18n.t("ниже", "lower"); high: I18n.t("выше", "higher")
+                    from: -1; to: 1; origin: 0; step: 0.25
+                    value: Assistant.cfg.voiceHeight
+                    onMoved: v => { Assistant.cfg.voiceHeight = v; root.voiceChanged(); }
+                    onReleased: root.voiceDone()
                 }
             }
         }

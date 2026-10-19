@@ -162,6 +162,32 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, ["stop"])
         self.d.voice.say.assert_awaited_once()
 
+    async def test_call_sets_volume(self):
+        # позвали — громкость системы на 35 %
+        calls = []
+
+        async def sh(*argv, **kw):
+            calls.append(argv)
+            return ""
+        self.d.start = lambda coro: coro.close()
+        with patch("glass_assistant.tools.base.sh", sh):
+            await self.d.command({"cmd": "listen"})
+            await asyncio.sleep(0)
+        self.assertIn(("wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.35"), calls)
+
+    async def test_call_volume_off(self):
+        calls = []
+
+        async def sh(*argv, **kw):
+            calls.append(argv)
+            return ""
+        self.d.start = lambda coro: coro.close()
+        with patch("glass_assistant.tools.base.sh", sh), \
+                patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "call_volume_on": False}):
+            await self.d.command({"cmd": "listen"})
+            await asyncio.sleep(0)
+        self.assertEqual(calls, [])
+
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
         await self.d.command({"cmd": "unload"})

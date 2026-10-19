@@ -101,7 +101,9 @@ class ClaudeBrain:
                 output_config={"effort": cfg["effort"]},
                 cache_control={"type": "ephemeral"},
                 system=SYSTEM.format(name=config.NAME,
-                                     gender="женском" if config.female(cfg) else "мужском") + memory.store.prompt(),
+                                     gender="женском" if config.female(cfg) else "мужском")
+                       + ("\n- Отвечай по-английски: выбран английский голос." if config.lang(cfg) == "en" else "")
+                       + memory.store.prompt(),
                 tools=tools.anthropic_tools(),
                 messages=msgs,
             ) as stream:

@@ -213,3 +213,27 @@ class SentencesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VoicesTest(unittest.IsolatedAsyncioTestCase):
+    def test_registry(self):
+        self.assertEqual(config.voice("lessac").lang, "en")
+        self.assertTrue(config.voice("irina").female)
+        self.assertFalse(config.voice("ryan").female)
+        self.assertEqual(config.voice("нет-такого"), config.VOICES["xenia"])
+        self.assertEqual(config.voice_id({"voice": "нет-такого"}), "xenia")
+
+    def test_english_kept_english(self):
+        self.assertEqual(speakable("Hi! I'm Vega, 3 tracks.", "piper", "en"), "Hi! I'm Vega, 3 tracks.")
+        self.assertNotIn("+", speakable("Я Вега.", "piper", "ru"))
+
+    async def test_russian_phrase_of_english_voice_goes_to_silero(self):
+        v = Voice()
+        v.ready = AsyncMock()
+        cfg = {**config.DEFAULTS, "voice": "ryan"}
+        with patch("glass_assistant.config.voice_id", return_value="ryan"):
+            await v.say("Громкость 35 процентов", cfg)
+            await v.say("Volume is 35 percent", cfg)
+        self.assertEqual(v.texts.get_nowait()[2][0], "aidar")      # мужской английский → мужской Silero
+        self.assertEqual(v.texts.get_nowait()[2][0], "ryan")
+
