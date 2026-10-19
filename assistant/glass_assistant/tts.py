@@ -15,6 +15,7 @@ from .numbers import spoken
 
 RATE = 48000
 LINGER = 0.3          # с — ждём следующую фразу, прежде чем закрыть проигрыватель
+LEAD = 0.12           # с — новый pw-play начинает звучать примерно через столько (запуск и буфер)
 
 
 def _num(v, lo, hi, default):
@@ -103,6 +104,8 @@ class Voice:
         self.said = collections.deque(maxlen=12)   # (время, текст): что звучало — эхо из колонок не перебивает
         self.idle_at = 0.0                         # когда замолчала
         self.piper = {}                            # модель → PiperVoice
+        self.on_level = None                       # async (0…1): громкость речи, пока звучит, — свет острова
+        self.play_end = 0.0                        # когда доиграет отданное pw-play (часы цикла событий)
 
     def _load(self, path):
         import torch
@@ -216,13 +219,17 @@ class Voice:
             proc = None
             while True:                  # один ответ — один pw-play
                 if gen == self.gen:
+                    lead = 0.0
                     if proc is None or proc is not self.proc:     # первый кусок или после stop()
                         proc = self.proc = await self.spawn()
+                        lead = LEAD
                     try:
                         proc.stdin.write(pcm)
                         await proc.stdin.drain()
                     except (BrokenPipeError, ConnectionResetError):
                         pass
+                    if self.on_level:
+                        self._levels(pcm, gen, lead)
                 try:                     # дальше ещё будет — ждём сколько надо; иначе чуть-чуть
                     gen, pcm = await asyncio.wait_for(self.pcms.get(), None if self._more() else LINGER)
                 except asyncio.TimeoutError:
@@ -237,6 +244,34 @@ class Voice:
                     self.proc = None
             self._maybe_idle()
 
+    def _levels(self, pcm, gen, lead):
+        """Громкость куска по 30 мс — в on_level в том темпе, в каком он будет звучать: pw-play играет куски
+        подряд, так что начало этого — когда кончится прошлый (или через lead, если проигрыватель новый)."""
+        import numpy as np
+        x = np.frombuffer(pcm, dtype=np.float32)
+        step = RATE * 3 // 100
+        n = len(x) // step
+        if n == 0:
+            return
+        env = np.sqrt((x[:n * step].reshape(n, step).astype(np.float64) ** 2).mean(axis=1))
+        now = asyncio.get_running_loop().time()
+        start = max(now + lead, self.play_end)
+        self.play_end = start + len(x) / RATE
+        asyncio.create_task(self._emit_levels(env, start, step / RATE, gen))
+
+    async def _emit_levels(self, env, start, dt, gen):
+        loop = asyncio.get_running_loop()
+        for i, v in enumerate(env):
+            delay = start + i * dt - loop.time()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            if gen != self.gen:
+                return
+            try:
+                await self.on_level(min(1.0, float(v) * 4.0))
+            except Exception:
+                return
+
     def _maybe_idle(self):
         if not self._more() and self.proc is None:
             self.idle.set()
@@ -250,6 +285,7 @@ class Voice:
     def stop(self):
         """Замолчать сразу и забыть очереди."""
         self.gen += 1
+        self.play_end = 0.0
         for q in (self.texts, self.pcms):
             while not q.empty():
                 q.get_nowait()

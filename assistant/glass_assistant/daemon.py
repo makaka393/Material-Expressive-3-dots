@@ -73,6 +73,7 @@ class Daemon:
         self.stopping = asyncio.Event()  # SIGTERM/SIGINT
         self.whisper = Whisper()
         self.voice = Voice()
+        self.voice.on_level = lambda v: self.emit("level", v=round(v, 3))   # пока говорит — свет острова дышит её голосом
         self.clients = set()
         self.state = "idle"
         self.job = None

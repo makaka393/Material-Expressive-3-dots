@@ -221,6 +221,7 @@ Island {
         st: Assistant.state
         level: Assistant.level
         error: Assistant.error !== "" && !Assistant.busy
+        active: root.assist
         islandRadius: root.radius
         opacity: root.assist ? 1 : 0
         scale: root.assist ? 1 : 0.6
