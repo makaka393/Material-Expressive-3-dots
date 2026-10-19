@@ -27,10 +27,13 @@ Island {
     readonly property bool toastImage: Activity.image !== ""
 
     strong: mode !== "compact" || toast || notif || assist
-    targetWidth: assist ? 540 : notif ? 460 : toast ? (toastImage ? 400 : 360)
+    // Вега: весь остров — эффект; слушает и думает — шар, говорит — пилюля (форма перетекает пружинкой)
+    readonly property bool assistTalk: Assistant.state === "speaking"
+    pill: assist
+    targetWidth: assist ? (assistTalk ? 236 : 92) : notif ? 460 : toast ? (toastImage ? 400 : 360)
                : mode === "media" || mode === "weather" ? Math.max(520, compact.implicitWidth + 30)
                : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
-    targetHeight: assist ? Math.max(68, assistBox.implicitHeight + 26) : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
+    targetHeight: assist ? 92 : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
                 : mode === "media" ? 184 : mode === "weather" ? 196 : mode === "calendar" ? 328 : Theme.barHeight
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
@@ -213,65 +216,23 @@ Island {
     }
 
     // ───────────── ассистент ─────────────
-    Item {
+    // весь остров — свет Gemini в стекле (GeminiIsland), без надписей; клик — стоп
+    GeminiIsland {
         id: assistBox
-        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 14; rightMargin: 12 }
-        implicitHeight: Math.max(44, assistCol.implicitHeight)
-        height: implicitHeight
+        anchors.fill: parent
+        st: Assistant.state
+        level: Assistant.level
+        error: Assistant.error !== "" && !Assistant.busy
+        islandRadius: root.radius
         opacity: root.assist ? 1 : 0
-        scale: root.assist ? 1 : 0.9
-        visible: opacity > 0
-        Behavior on opacity { Anim { kind: "effects"; duration: root.assist ? 280 : 160 } }
+        scale: root.assist ? 1 : 0.6
+        visible: opacity > 0.01
+        Behavior on opacity { Anim { kind: "effects"; duration: root.assist ? 260 : 200 } }
         Behavior on scale { Anim { kind: "spatial" } }
-        readonly property string st: Assistant.state
-
-        // «шар» в духе Gemini, в стекле острова: слушает — круг со светом снизу от голоса, говорит — пилюля
-        // с волнами синего, фиолетового и розового, думает — свет кружит (GeminiOrb)
-        GeminiOrb {
-            id: orb
-            anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            st: assistBox.st
-            level: Assistant.level
-            error: Assistant.error !== "" && !Assistant.busy
-            shown: root.assist
-            Icon {
-                anchors.centerIn: parent
-                visible: orb.error
-                name: "error"; size: 22; fill: 1; color: Theme.error
-            }
-        }
-        Column {
-            id: assistCol
-            anchors { left: orb.right; leftMargin: 14; right: assistBtn.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
-            spacing: 2
-            Label {
-                width: parent.width
-                text: assistBox.st === "listening" ? I18n.t("Слушаю…", "Listening…")
-                    : assistBox.st === "transcribing" ? I18n.t("Распознаю…", "Transcribing…")
-                    : Assistant.heard !== "" ? "«" + Assistant.heard + "»"
-                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…") : Assistant.name
-                size: 14; weight: 700
-            }
-            Text {
-                width: parent.width
-                visible: text !== ""
-                font.family: Theme.font
-                font.pixelSize: 13
-                font.variableAxes: ({ "wght": 500, "ROND": 100 })
-                text: Assistant.error !== "" ? Assistant.error
-                    : Assistant.answer !== "" ? (Assistant.answer.length > 240 ? "…" + Assistant.answer.slice(-240) : Assistant.answer)
-                    : assistBox.st === "thinking" ? I18n.t("Думаю…", "Thinking…")
-                    : assistBox.st === "listening" ? I18n.t("Говори — пауза закончит вопрос", "Speak — a pause ends the question") : ""
-                color: Theme.fgVariant
-                wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight
-            }
-        }
-        IconButton {
-            id: assistBtn
-            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            icon: Assistant.busy ? "stop" : "close"
-            size: 38; iconSize: 20
-            bg: Assistant.busy ? Theme.glassChip : "transparent"
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.assist
+            cursorShape: Qt.PointingHandCursor
             onClicked: Assistant.busy ? Assistant.stop() : Assistant.dismiss()
         }
     }
