@@ -3,6 +3,8 @@ import QtQuick
 Item {
     id: root
     property var barWindow: null
+    property var shotView: null            // снимок экрана для линзы Веги (Bar.qml)
+    property var shotTex: null
     readonly property alias leftGroup: left
     readonly property alias centerGroup: center
     readonly property alias rightGroup: right
@@ -42,6 +44,9 @@ Item {
     DynamicIsland {
         id: center
         anchors { top: parent.top; topMargin: Theme.outer; horizontalCenter: parent.horizontalCenter }
+        shotView: root.shotView
+        shotTex: root.shotTex
+        screenSize: root.barWindow && root.barWindow.screen ? Qt.vector2d(root.barWindow.screen.width, root.barWindow.screen.height) : Qt.vector2d(1, 1)
     }
 
     Row {

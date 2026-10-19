@@ -9,7 +9,8 @@ Item {
     property real targetHeight: Theme.barHeight
     property bool strong: false                    // плотнее стекло (для раскрытых карточек)
     readonly property bool hovered: hover.hovered
-    readonly property real radius: Math.min(height / 2, Theme.radiusCard)
+    property real cardRadius: Theme.radiusCard     // скругление раскрытой карточки (у Веги — круглее, как линза)
+    readonly property real radius: Math.min(height / 2, cardRadius)
     default property alias content: inner.data
 
     implicitWidth: targetWidth

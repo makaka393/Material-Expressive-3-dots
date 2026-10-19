@@ -27,11 +27,22 @@ Island {
     readonly property bool toastImage: Activity.image !== ""
 
     strong: mode !== "compact" || toast || notif || assist
-    // Вега: остров раскрывается как обычная карточка, внутри — свет Gemini (GeminiIsland) вместо надписей
-    targetWidth: assist ? 540 : notif ? 460 : toast ? (toastImage ? 400 : 360)
+    // Вега — как новая Siri: сверху остаётся обычный остров (часы, трек), снизу раскрывается линза Liquid Glass
+    // (LiquidLens), на стыке — свет. Сначала снимок экрана (его преломляет линза), через 60 мс — раскрытие
+    property var shotView: null            // ScreencopyView экрана (Bar.qml)
+    property var shotTex: null
+    property vector2d screenSize: Qt.vector2d(1, 1)
+    property bool lens: false
+    onAssistChanged: {
+        if (assist) { if (shotView) shotView.captureFrame(); lensTimer.restart(); }
+        else { lensTimer.stop(); lens = false; }
+    }
+    Timer { id: lensTimer; interval: 60; onTriggered: root.lens = root.assist }
+    cardRadius: lens ? 46 : Theme.radiusCard
+    targetWidth: lens ? Math.max(compact.implicitWidth + 30, 470) : notif ? 460 : toast ? (toastImage ? 400 : 360)
                : mode === "media" || mode === "weather" ? Math.max(520, compact.implicitWidth + 30)
                : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
-    targetHeight: assist ? 76 : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
+    targetHeight: lens ? Theme.barHeight + 120 : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
                 : mode === "media" ? 184 : mode === "weather" ? 196 : mode === "calendar" ? 328 : Theme.barHeight
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
@@ -61,8 +72,8 @@ Island {
         y: (Theme.barHeight - height) / 2
         height: 28
         spacing: 12
-        opacity: root.mode === "compact" && !root.toast && !root.notif && !root.assist ? 1 : 0
-        scale: root.mode === "compact" && !root.toast && !root.notif && !root.assist ? 1 : 0.86
+        opacity: root.mode === "compact" && !root.toast && !root.notif ? 1 : 0
+        scale: root.mode === "compact" && !root.toast && !root.notif ? 1 : 0.86
         visible: opacity > 0
         Behavior on opacity { Anim { kind: "effects" } }
         Behavior on scale { Anim { kind: "fast" } }
@@ -214,23 +225,23 @@ Island {
     }
 
     // ───────────── ассистент ─────────────
-    // внутри раскрытого острова — свет Gemini (GeminiIsland) во всю карточку, без надписей; клик — стоп
-    GeminiIsland {
-        id: assistBox
+    // линза Liquid Glass под компактной строкой и свет на стыке; клик — стоп
+    LiquidLens {
         anchors.fill: parent
         st: Assistant.state
         level: Assistant.level
         error: Assistant.error !== "" && !Assistant.busy
-        active: root.assist
+        active: root.lens
         islandRadius: root.radius
-        opacity: root.assist ? 1 : 0
-        scale: root.assist ? 1 : 0.6
-        visible: opacity > 0.01
-        Behavior on opacity { Anim { kind: "effects"; duration: root.assist ? 260 : 200 } }
-        Behavior on scale { Anim { kind: "spatial" } }
+        seam: Theme.barHeight
+        origin: Qt.vector2d(root.x, root.y)
+        screen: root.screenSize
+        shot: root.shotTex
+        tint: Theme.frost
+        visible: root.lens || open > 0.01
         MouseArea {
-            anchors.fill: parent
-            enabled: root.assist
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: parent.top; topMargin: Theme.barHeight }
+            enabled: root.lens
             cursorShape: Qt.PointingHandCursor
             onClicked: Assistant.busy ? Assistant.stop() : Assistant.dismiss()
         }

@@ -30,5 +30,28 @@ PanelWindow {
         id: content
         anchors.fill: parent
         barWindow: bar
+        shotView: shot
+        shotTex: shotTex
+    }
+
+    // снимок экрана для линзы Веги: один кадр в момент вызова (DynamicIsland), пока остров компактный —
+    // линза преломляет то, что под ней, без петли «линза в линзе». На экране не рисуется (hideSource)
+    ScreencopyView {
+        id: shot
+        captureSource: bar.screen
+        live: false
+        width: bar.screen ? bar.screen.width : 1
+        height: bar.screen ? bar.screen.height : 1
+    }
+    ShaderEffectSource {
+        id: shotTex
+        sourceItem: shot
+        hideSource: true
+        live: true
+        mipmap: true
+        smooth: true
+        textureSize: Qt.size(Math.max(1, shot.width), Math.max(1, shot.height))   // полное: линза увеличивает
+        visible: false
+        width: 1; height: 1
     }
 }
