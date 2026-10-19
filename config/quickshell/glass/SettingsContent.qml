@@ -830,8 +830,8 @@ Item {
                 spacing: 4
                 Label { text: Assistant.name; size: 26; weight: 750; elide: Text.ElideNone }
                 Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
-                        text: I18n.t("Позови «Тори» или нажми Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
-                                     "Say “Tori” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
+                        text: I18n.t("Позови «Вега» или нажми Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
+                                     "Say “Vega” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
             }
 
             // ── состояние службы и ключа
@@ -911,7 +911,7 @@ Item {
 
                 Item { width: 1; height: 2 }
                 AsOption { width: parent.width; k: "wake"; icon: "hearing"
-                           text: I18n.t("Звать по имени — «Тори»", "Wake by name — “Tori”") }
+                           text: I18n.t("Звать по имени — «Вега»", "Wake by name — “Vega”") }
                 AsOption { width: parent.width; k: "speakVoice"; icon: "record_voice_over"
                            text: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") }
 

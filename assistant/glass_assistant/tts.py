@@ -5,8 +5,10 @@
 запуска проигрывателя перед каждой фразой. Модель грузится и разогревается при запуске службы.
 """
 import asyncio
+import collections
 import os
 import re
+import time
 
 from . import config
 from .numbers import spoken
@@ -98,6 +100,8 @@ class Voice:
         self.idle = asyncio.Event()
         self.idle.set()
         self.tasks = None
+        self.said = collections.deque(maxlen=12)   # (время, текст): что звучало — эхо из колонок не перебивает
+        self.idle_at = 0.0                         # когда замолчала
 
     def _load(self, path):
         import torch
@@ -142,6 +146,7 @@ class Voice:
         if not text:
             return
         await self.ready(cfg)
+        self.said.append((time.monotonic(), text))
         self.idle.clear()
         await self.texts.put((self.gen, text, voice_of(cfg)))
 
@@ -194,6 +199,12 @@ class Voice:
     def _maybe_idle(self):
         if not self._more() and self.proc is None:
             self.idle.set()
+            self.idle_at = time.monotonic()
+
+    def said_recently(self, check, within=15.0) -> bool:
+        """Звучало ли за within секунд что-то, где check(текст) — правда (своё имя в своей же речи)."""
+        now = time.monotonic()
+        return any(now - t < within and check(text) for t, text in self.said)
 
     def stop(self):
         """Замолчать сразу и забыть очереди."""
@@ -205,6 +216,7 @@ class Voice:
             self.proc.terminate()
         self.proc = None
         self.idle.set()
+        self.idle_at = time.monotonic()
 
 
 SENT_END = re.compile(r"(?<=[.!?…])\s+|\n+")
@@ -258,7 +270,7 @@ LATIN_WORDS = {
     "ok": "окей", "okay": "окей", "hi": "хай", "hello": "хэллоу", "the": "зе", "and": "энд", "of": "оф",
     "you": "ю", "my": "май", "love": "лав", "me": "ми", "is": "из", "it": "ит", "in": "ин", "on": "он",
     "night": "найт", "day": "дэй", "life": "лайф", "time": "тайм", "world": "ворлд", "heart": "харт",
-    "tori": "т+ори",
+    "vega": "в+ега", "here": "хиэр", "her": "хёр",
 }
 LETTERS = {"a": "эй", "b": "би", "c": "си", "d": "ди", "e": "и", "f": "эф", "g": "джи", "h": "эйч", "i": "ай",
            "j": "джей", "k": "кей", "l": "эл", "m": "эм", "n": "эн", "o": "оу", "p": "пи", "q": "кью", "r": "ар",
@@ -293,12 +305,12 @@ def _latin(m) -> str:
 
 def speakable(text: str) -> str:
     """Убрать то, что вслух не читают (разметку, ссылки, эмодзи), латиницу — русскими буквами, а числа —
-    словами: Silero цифры глотает. Имени — ударение: «Т+ори», а не «Тор+и»."""
+    словами: Silero цифры глотает. Имени — ударение: «В+ега», а не «Вег+а»."""
     t = re.sub(r"https?://\S+", "", text)
     t = re.sub(r"`{1,3}[^`]*`{1,3}", "", t)
     t = re.sub(r"[*_#>|~^]+", "", t)
     t = re.sub(r"[\U0001F000-\U0001FFFF☀-➿]", "", t)
     t = t.replace("—", ", ").replace("–", ", ")
     t = LATIN_RX.sub(_latin, t)
-    t = re.sub(r"(?<![\w+])Тори(?!\w)", "Т+ори", t)
+    t = re.sub(r"(?<![\w+])(В|в)ег(а|у|е|ой|и)(?!\w)", r"\1+ег\2", t)
     return spoken(" ".join(t.split()).strip())

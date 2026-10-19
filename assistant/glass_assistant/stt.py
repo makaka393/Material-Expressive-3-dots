@@ -153,12 +153,15 @@ class Whisper:
                         await asyncio.sleep(0.25)
             raise RuntimeError("whisper-server не ответил")
 
-    async def transcribe(self, cfg, audio) -> str:
+    async def transcribe(self, cfg, audio, prompt=None) -> str:
+        """prompt — подсказка Whisper (имя, пока ассистент говорит: в смеси двух голосов он иначе слышит только её)."""
         await self.ensure(cfg)
+        data = {"response_format": "json", "temperature": "0.0", "language": cfg["language"]}
+        if prompt:
+            data["prompt"] = prompt
         async with httpx2.AsyncClient(timeout=30) as http:
             r = await http.post(self.url + "/inference",
-                                files={"file": ("speech.wav", to_wav(audio), "audio/wav")},
-                                data={"response_format": "json", "temperature": "0.0", "language": cfg["language"]})
+                                files={"file": ("speech.wav", to_wav(audio), "audio/wav")}, data=data)
             r.raise_for_status()
         self.used = time.monotonic()
         return clean(r.json().get("text", ""))

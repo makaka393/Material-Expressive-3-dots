@@ -23,6 +23,7 @@
   {"ev": "error", "text": "..."}
 """
 import asyncio
+import collections
 import json
 import os
 import re
@@ -49,6 +50,9 @@ FOLLOW_MAX = 5           # реплик подряд; дальше — снов�
 # дослушивается до «паузы в конце фразы» из настроек
 WAKE_GAP = 0.7           # с тишины — конец кусочка
 WAKE_MAX = 8.0           # с — длинный кусок (музыка, разговор рядом) режем, чтобы проверить имя
+# перебить: пока говорит, раз в BARGE_EVERY с разбираем последние BARGE_WIN с — не позвали ли по имени
+BARGE_WIN = 2.5
+BARGE_EVERY = 1.0
 END = {"стоп", "хватит", "всё", "все", "отбой", "отмена", "пока", "спасибо", "спасибо всё", "спасибо все",
        "всё спасибо", "все спасибо", "спасибо хватит", "нет спасибо", "ничего"}
 # что Whisper «слышит» в тишине, шуме и музыке
@@ -235,7 +239,7 @@ class Daemon:
             if not cfg["wake"]:
                 await asyncio.sleep(2)
                 continue
-            if self.busy() or not self.voice.idle.is_set():
+            if self._wake_paused():
                 await asyncio.sleep(0.3)
                 continue
             try:
@@ -248,7 +252,16 @@ class Daemon:
                 await asyncio.sleep(3)
 
     def _wake_paused(self):
-        return self.busy() or not self.voice.idle.is_set() or not config.load()["wake"]
+        """Имя не ждём, когда служба слушает сама (вопрос, продолжение разговора) или слово выключено.
+        Пока думает и говорит — ждём: позвал по имени — перебил."""
+        return not config.load()["wake"] or self.busy() and self.state in ("listening", "transcribing")
+
+    def _echo(self, words, barge) -> bool:
+        """Своё имя из колонок: пока говорит — если оно было в её речи, сразу после — если только что."""
+        own = lambda t: wake(t, words) is not None
+        if barge:
+            return self.voice.said_recently(own, 20)
+        return time.monotonic() - self.voice.idle_at < 2.0 and self.voice.said_recently(own, 30)
 
     async def wake_listen(self, cfg, frames):
         """Ждёт имя в потоке кадров. Микрофон не закрывается, пока Whisper разбирает кусочек: кадры копятся
@@ -266,6 +279,8 @@ class Daemon:
         words = config.wake_words(cfg)
         vad = Vad()
         pre, seg, n, talking_for, quiet = [], [], 0, 0.0, 0.0
+        ring = collections.deque(maxlen=int(BARGE_WIN * RATE / FRAME))
+        since, loud = 0, False
         try:
             while (f := await queue.get()) is not None:
                 n += 1
@@ -274,6 +289,24 @@ class Daemon:
                 talking = vad.speech(vad.level(f))
                 if n < 10:                                  # первые 300 мс — только шум комнаты
                     continue
+                ring.append(f)
+                if not self.voice.idle.is_set():           # говорит — слушаем фоном, не зовут ли
+                    seg = []
+                    since, loud = since + 1, loud or talking
+                    if since * FRAME / RATE < BARGE_EVERY:
+                        continue
+                    since, heard_loud, loud = 0, loud, False
+                    if not heard_loud:
+                        continue
+                    # в смеси двух голосов Whisper слышит её, а не тебя — с подсказкой перебили 8 из 8, без — 6
+                    head = list(ring)
+                    text = await self.whisper.transcribe(cfg, np.concatenate(head), prompt=f"{config.NAME}.")
+                    if after_wake(text, words) is None or self._echo(words, barge=True):
+                        continue
+                    await self._barge()
+                    await self._woke(cfg, queue, vad, text, before=False, head=head)
+                    return
+                since, loud = 0, False
                 if not seg:
                     pre = (pre + [f])[-10:]                 # 300 мс до начала речи — не съесть первый слог
                     if talking:
@@ -285,33 +318,57 @@ class Daemon:
                 if quiet < WAKE_GAP and len(seg) * FRAME / RATE < WAKE_MAX:
                     continue
                 chunk, seg = seg, []
-                if talking_for < 0.12:                      # щелчок, вздох; быстрое «Тори!» — уже 0,2 с
+                if talking_for < 0.12:                      # щелчок, вздох; быстрое «Вега!» — 0,2 с
                     continue
-                text = await self.whisper.transcribe(cfg, np.concatenate(chunk))
+                # подсказка с именем: «Вега» 77 из 90 против 70, ложных на речи без имени и в шуме — 0
+                text = await self.whisper.transcribe(cfg, np.concatenate(chunk), prompt=f"{config.NAME}.")
                 rest = after_wake(text, words)
                 if rest is None:
                     if hint := near_name(text, words):
                         print(f"wake: похоже на имя, но не оно: «{hint}»", flush=True)
                     continue
+                if self._echo(words, barge=False):
+                    continue
                 if self._wake_paused():
                     return
-                try:
-                    if rest:                                # «Тори, поставь…» — дослушать, вдруг ещё говоришь
-                        await self.set_state("listening")
-                        more = await self._rest_of_phrase(cfg, queue, vad)
-                        if self._wake_paused():             # пока дослушивал — нажали Super+A
-                            return
-                        if more:
-                            await self.set_state("transcribing")
-                            text = f"{text} {await self.whisper.transcribe(cfg, np.concatenate(more))}".strip()
-                    print("wake: имя услышано", flush=True)
-                    await self.on_wake(text, cfg)
-                finally:
-                    if not self.busy() and self.state != "idle":
-                        await self.set_state("idle")
+                if self.busy() or not self.voice.idle.is_set():
+                    await self._barge()                     # позвали, пока думала — новое вместо старого
+                await self._woke(cfg, queue, vad, text)
                 return
         finally:
             reader.cancel()
+
+    async def _barge(self):
+        """Перебили по имени: замолчать и бросить прошлый ответ."""
+        print("wake: перебили по имени", flush=True)
+        self.voice.stop()
+        job = self.job
+        if job and not job.done():
+            job.cancel()
+            await asyncio.wait({job}, timeout=2)
+
+    async def _woke(self, cfg, queue, vad, text, before=True, head=None):
+        """Имя услышано: с вопросом — дослушать до паузы и ответить; одно имя — звук и слушать вопрос.
+        head — окно, где перебили: вопрос в нём оборван посреди слова, его распознаём вместе с продолжением."""
+        words = config.wake_words(cfg)
+        try:
+            if after_wake(text, words, before):             # «Вега, поставь…» — дослушать, вдруг ещё говоришь
+                await self.set_state("listening")
+                more = await self._rest_of_phrase(cfg, queue, vad)
+                if self._wake_paused():                     # пока дослушивал — нажали Super+A
+                    return
+                if more:
+                    await self.set_state("transcribing")
+                    full = await self.whisper.transcribe(cfg, np.concatenate(head + more), prompt=f"{config.NAME}.") if head else None
+                    if full and after_wake(full, words, before):
+                        text = full
+                    else:
+                        text = f"{text} {await self.whisper.transcribe(cfg, np.concatenate(more))}".strip()
+            print("wake: имя услышано", flush=True)
+            await self.on_wake(text, cfg, before)
+        finally:
+            if not self.busy() and self.state != "idle":
+                await self.set_state("idle")
 
     async def _rest_of_phrase(self, cfg, queue, vad):
         """Кадры после имени до «паузы в конце фразы» (её начало — уже прошедшие WAKE_GAP). [] — не говорил."""
@@ -330,17 +387,17 @@ class Daemon:
                 await self.emit("level", v=round(min(1.0, rms / 6000.0), 3))
         return more if spoke else []
 
-    async def on_wake(self, text, cfg):
-        rest = after_wake(text, config.wake_words(cfg))
+    async def on_wake(self, text, cfg, before=True):
+        rest = after_wake(text, config.wake_words(cfg), before)
         if rest is None:
             return
         await self.emit("heard", text=text)
         if cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))
         if rest:
-            self.start(self.ask(rest, voice=True))                # «Тори, какая погода?» — сразу вопрос
+            self.start(self.ask(rest, voice=True))                # «Вега, какая погода?» — сразу вопрос
         else:
-            chime.play("wake")                                    # «Тори!» — звук и слушаем вопрос
+            chime.play("wake")                                    # «Вега!» — звук и слушаем вопрос
             self.start(self.listen(cfg))
 
     # ── обслуживание: выгрузить простаивающие модели
@@ -440,9 +497,9 @@ class Daemon:
             pass
 
 
-def after_wake(text: str, words) -> str | None:
+def after_wake(text: str, words, before: bool = True) -> str | None:
     """Если во фразе есть имя ассистента — что к нему сказано ("" — только имя), иначе None."""
-    return wake(text, words)                    # «эй, Тори …», «Tori, …», «Какая погода, Тори?» — по звучанию
+    return wake(text, words, before)                   # «эй, Вега …», «Vega, …», «Какая погода, Вега?» — по звучанию
 
 
 def near_name(text: str, words) -> str | None:

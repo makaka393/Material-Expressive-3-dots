@@ -13,7 +13,7 @@ Singleton {
     id: root
 
     // имя — одно, оно же слово-активатор (assistant/glass_assistant/config.py: NAME)
-    readonly property string name: I18n.t("Тори", "Tori")
+    readonly property string name: I18n.t("Вега", "Vega")
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/glass-assistant.sock"
     readonly property bool online: sock.connected
     property string state: "idle"          // idle | listening | transcribing | thinking | speaking
@@ -108,7 +108,7 @@ Singleton {
     // новое прослушивание обрывает прошлое. Фраза всегда русская: Silero говорит только по-русски
     function preview() {
         if (!sock.connected) return;
-        send({ cmd: "say", preview: true, text: "Привет! Я Тори. Так будет звучать мой голос.",
+        send({ cmd: "say", preview: true, text: "Привет! Я Вега. Так будет звучать мой голос.",
                voice: acfg.voice, tone: acfg.voiceTone, speed: acfg.voiceSpeed, height: acfg.voiceHeight });
     }
     function reset() { send({ cmd: "reset" }); heard = ""; answer = ""; }

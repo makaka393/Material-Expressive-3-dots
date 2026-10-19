@@ -49,13 +49,14 @@ def sound(word: str) -> str:
     return re.sub(r"[^\w]", "", word.lower()).translate(LATIN).translate(SOUND)
 
 
-def wake(text: str, words) -> str | None:
+def wake(text: str, words, before: bool = True) -> str | None:
     """Если во фразе есть слово-активатор — что к нему сказано ("" — только имя), иначе None.
 
-    Имя ищется по всей фразе: «так, Тори, громче», обрывок чужой речи перед ним, «- Тори, …» (Whisper
-    ставит тире). Сказано после имени — это и есть вопрос; имя в конце («Какая погода, Тори?») — вопрос
+    Имя ищется по всей фразе: «так, Вега, громче», обрывок чужой речи перед ним, «- Вега, …» (Whisper
+    ставит тире). Сказано после имени — это и есть вопрос; имя в конце («Какая погода, Вега?») — вопрос
     перед ним, если он в том же предложении. Длинные слова («обсидиан») — по началу: «обсидианчик»;
-    короткие («обс», «тори») — только целиком: иначе «обсудим», «истории»."""
+    короткие («обс», «вега») — только целиком: иначе «обсудим», «Вегас». before=False — вопрос только после
+    имени: перебили, пока говорила, — перед именем звучала она сама."""
     keys = [sound(w) for w in words]
     toks = text.split()
     for i in range(len(toks)):
@@ -66,12 +67,12 @@ def wake(text: str, words) -> str | None:
             if k and any(k == w or len(w) >= 6 and k.startswith(w[:6]) for w in keys):
                 tail = text.split(None, i + n)
                 rest = tail[i + n].lstrip(" ,.!?-—–…" + QUOTES).rstrip(" " + QUOTES) if len(tail) > i + n else ""
-                return rest or _before(toks[:i])
+                return rest or (_before(toks[:i]) if before else "")
     return None
 
 
 def _before(toks) -> str:
-    """Вопрос перед именем — из того же предложения, без «эй», «слушай»; «… Тори.» после точки — только имя."""
+    """Вопрос перед именем — из того же предложения, без «эй», «слушай»; «… Вега.» после точки — только имя."""
     if not toks or re.search(r"[.!?…]$", toks[-1]):
         return ""
     words = re.split(r"[.!?…]\s+", " ".join(toks))[-1].lstrip(" -—–" + QUOTES).split()

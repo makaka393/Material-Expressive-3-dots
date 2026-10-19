@@ -112,7 +112,7 @@ class SpeakableTest(unittest.TestCase):
         self.assertIn("ар-ти-экс", speakable("RTX 4070"))
 
     def test_name_stress(self):
-        self.assertEqual(speakable("Привет! Я Тори."), "Привет! Я Т+ори.")
+        self.assertEqual(speakable("Привет! Я Вега."), "Привет! Я В+ега.")
 
 
 class SayTest(unittest.IsolatedAsyncioTestCase):

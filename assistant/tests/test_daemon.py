@@ -125,7 +125,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Тори.", config.load())
+            await self.d.on_wake("Вега.", config.load())
         play.assert_called_once_with("wake")
         self.assertEqual(started, ["Daemon.listen"])
 
@@ -133,7 +133,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         started = []
         self.d.start = lambda coro: (started.append(coro.__qualname__), coro.close())
         with patch("glass_assistant.daemon.chime.play") as play:
-            await self.d.on_wake("Тори, следующий трек", config.load())
+            await self.d.on_wake("Вега, следующий трек", config.load())
         play.assert_not_called()
         self.assertEqual(started, ["Daemon.ask"])
 
@@ -421,7 +421,7 @@ class WakeListenTest(unittest.IsolatedAsyncioTestCase):
         self.heard = []                                  # что «распознал» Whisper — по очереди
         self.lens = []
 
-        async def transcribe(cfg, audio):
+        async def transcribe(cfg, audio, prompt=None):
             self.lens.append(len(audio))
             return self.heard.pop(0) if self.heard else ""
         self.d.whisper.transcribe = transcribe
@@ -435,7 +435,7 @@ class WakeListenTest(unittest.IsolatedAsyncioTestCase):
         self.d.emit = emit
 
     async def test_name_alone_chimes_fast(self):
-        self.heard = ["Тори."]
+        self.heard = ["Вега."]
         with patch("glass_assistant.daemon.chime.play") as play:
             await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.5), ("quiet", 1.0), ("quiet", 5)]))
         play.assert_called_once_with("wake")
@@ -443,8 +443,8 @@ class WakeListenTest(unittest.IsolatedAsyncioTestCase):
         self.assertLess(self.lens[0] / 16000, 1.6)          # кусочек кончился через 0,7 с тишины, не через 2
 
     async def test_name_with_question_waits_for_rest(self):
-        # «Тори, поставь будильник» … секунда раздумья … «на семь» — одна просьба
-        self.heard = ["Тори, поставь будильник", "на семь"]
+        # «Вега, поставь будильник» … секунда раздумья … «на семь» — одна просьба
+        self.heard = ["Вега, поставь будильник", "на семь"]
         with patch("glass_assistant.daemon.chime.play"):
             await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 1.0), ("quiet", 1.2), ("loud", 0.6),
                                                        ("quiet", 3.0)]))
@@ -452,26 +452,61 @@ class WakeListenTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(("state", {"state": "listening", "wake": True, "key": False}), self.events)
 
     async def test_name_with_question_no_rest(self):
-        self.heard = ["Тори, какая погода?"]
+        self.heard = ["Вега, какая погода?"]
         await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 1.0), ("quiet", 3.0)]))
         self.assertEqual(self.started, ["какая погода?"])
         self.assertEqual(len(self.lens), 1)                  # продолжения не было — второй раз не распознаём
 
     async def test_other_speech_ignored_and_keeps_listening(self):
-        self.heard = ["купи хлеба", "Тори, громче"]
+        self.heard = ["купи хлеба", "Вега, громче"]
         await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.8), ("quiet", 1.0), ("loud", 0.8),
                                                    ("quiet", 3.0)]))
         self.assertEqual(self.started, ["громче"])
 
     async def test_near_miss_logged(self):
-        self.heard = ["Толи, громче"]
+        self.heard = ["Вера, громче"]
         with patch("builtins.print") as out:
             await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.8), ("quiet", 1.0)]))
         self.assertEqual(self.started, [])
-        self.assertIn("Толи", " ".join(str(c) for c in out.call_args_list))
+        self.assertIn("Вера", " ".join(str(c) for c in out.call_args_list))
 
     async def test_stops_when_wake_off(self):
         self.cfg["wake"] = False
         await asyncio.wait_for(self.d.wake_listen(self.cfg, stream([("quiet", 30)])), 5)
         self.assertEqual(self.lens, [])
+
+    async def test_barge_in_while_speaking(self):
+        # говорит — а ей «Вега!»: замолчать и слушать; её же речь перед именем — не вопрос
+        self.d.voice.idle.clear()
+        stops = []
+        self.d.voice.stop = lambda: (stops.append(1), self.d.voice.idle.set())
+        self.heard = ["Сегодня будет солнечно, Вега!"]
+        with patch("glass_assistant.daemon.chime.play") as play:
+            await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 2.0), ("quiet", 3.0)]))
+        self.assertTrue(stops)
+        play.assert_called_once_with("wake")
+        self.assertEqual(self.started, ["Daemon.listen"])
+
+    async def test_barge_in_with_question(self):
+        self.d.voice.idle.clear()
+        self.d.voice.stop = lambda: self.d.voice.idle.set()
+        self.heard = ["будет солнечно. Вега, какая погода в Москве?"]
+        await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 1.5), ("quiet", 3.0)]))
+        self.assertEqual(self.started, ["какая погода в Москве?"])
+
+    async def test_own_name_from_speakers_ignored(self):
+        # «Привет! Я Вега…» из колонок — это не зовут
+        self.d.voice.idle.clear()
+        self.d.voice.said.append((__import__("time").monotonic(), "Привет! Я Вега."))
+        self.heard = ["Привет, я Вега."] * 5
+        await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 3.0), ("quiet", 0.5)]))
+        self.assertEqual(self.started, [])
+
+    async def test_name_while_thinking_cancels_old_answer(self):
+        self.d.job = asyncio.create_task(asyncio.sleep(30))
+        self.heard = ["Вега, стоп"]
+        await self.d.wake_listen(self.cfg, stream([("quiet", 0.5), ("loud", 0.8), ("quiet", 3.0)]))
+        await asyncio.sleep(0)
+        self.assertTrue(self.d.job.cancelled())
+        self.assertEqual(self.started, ["стоп"])
 
