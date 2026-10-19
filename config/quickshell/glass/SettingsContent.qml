@@ -1019,6 +1019,12 @@ Item {
             id: vcPane
             anchors.fill: parent
             readonly property int wantHeight: Math.ceil(vcCol.y + vcCol.height + 48)
+            // какие голоса показаны: при открытии — язык текущего голоса
+            property string lang: "ru"
+            Connections {
+                target: asPage
+                function onVoiceOpenChanged() { if (asPage.voiceOpen) vcPane.lang = Assistant.voiceInfo(Assistant.cfg.voice).lang; }
+            }
             opacity: asPage.voiceOpen ? 1 : 0
             visible: opacity > 0.01
             transform: Translate { x: asPage.voiceOpen ? 0 : 48; Behavior on x { Anim { kind: "spatial" } } }
@@ -1048,15 +1054,18 @@ Item {
                     id: vcCol
                     anchors { top: vcHead.bottom; topMargin: 18; left: parent.left; right: parent.right }
                     spacing: 10
-                    Label { text: I18n.t("Русские", "Russian"); size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
-                    Flow {
-                        width: parent.width; spacing: 10
-                        Repeater { model: Assistant.voices.filter(v => v.lang === "ru"); VoiceCard {} }
+                    // язык голосов: русские или английские — под ним только голоса этого языка
+                    TunerChoice {
+                        width: parent.width
+                        options: [{ id: "ru", icon: "translate", t: I18n.t("Русские", "Russian") },
+                                  { id: "en", icon: "language", t: "English" }]
+                        current: vcPane.lang
+                        onPicked: v => vcPane.lang = v
                     }
-                    Label { topPadding: 6; text: "English"; size: 15; weight: 700; color: Theme.primaryText; elide: Text.ElideNone }
                     Flow {
+                        id: vcGrid
                         width: parent.width; spacing: 10
-                        Repeater { model: Assistant.voices.filter(v => v.lang === "en"); VoiceCard {} }
+                        Repeater { model: Assistant.voices.filter(v => v.lang === vcPane.lang); VoiceCard {} }
                     }
 
                     // ── тон, скорость, высота — как в Siri: превью звучит прямо на ходу

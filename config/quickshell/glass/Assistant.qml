@@ -22,8 +22,6 @@ Singleton {
         { id: "irina", ru: "Лён", en: "Linen", lang: "ru", female: true },
         { id: "aidar", ru: "Бархат", en: "Velvet", lang: "ru", female: false },
         { id: "eugene", ru: "Гранит", en: "Granite", lang: "ru", female: false },
-        { id: "denis", ru: "Кедр", en: "Cedar", lang: "ru", female: false },
-        { id: "dmitri", ru: "Сталь", en: "Steel", lang: "ru", female: false },
         { id: "ruslan", ru: "Янтарь", en: "Amber", lang: "ru", female: false },
         { id: "lessac", ru: "Мёд", en: "Honey", lang: "en", female: true, accent: "us" },
         { id: "alba", ru: "Вереск", en: "Heather", lang: "en", female: true, accent: "scot" },

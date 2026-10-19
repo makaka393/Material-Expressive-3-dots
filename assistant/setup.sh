@@ -22,9 +22,8 @@ echo "== Python"
 echo "== Модели"
 get https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin "$A/models/whisper/ggml-large-v3-turbo-q5_0.bin"
 get https://models.silero.ai/models/tts/ru/v5_ru.pt "$A/models/tts/v5_ru.pt"
-# ещё голоса — Piper (rhasspy/piper-voices): 4 русских и 4 английских, по ~63 МБ
-for v in ru/ru_RU/irina/medium/ru_RU-irina-medium ru/ru_RU/denis/medium/ru_RU-denis-medium \
-         ru/ru_RU/dmitri/medium/ru_RU-dmitri-medium ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium \
+# ещё голоса — Piper (rhasspy/piper-voices): 2 русских и 4 английских, по ~63 МБ
+for v in ru/ru_RU/irina/medium/ru_RU-irina-medium ru/ru_RU/ruslan/medium/ru_RU-ruslan-medium \
          en/en_US/lessac/medium/en_US-lessac-medium en/en_US/ryan/medium/en_US-ryan-medium \
          en/en_GB/alba/medium/en_GB-alba-medium en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium; do
     for ext in onnx onnx.json; do
