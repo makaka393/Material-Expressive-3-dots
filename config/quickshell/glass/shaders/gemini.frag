@@ -71,9 +71,9 @@ void main() {
     // ── слушает: матовый шар — снизу бело-голубой свет, полоса света поднимается от голоса
     float lh = 0.78 - e * 0.30 + 0.02 * sin(x * 4.0 + t * 1.3);
     float glow = smoothstep(lh - 0.45, lh + 0.18, y);
-    vec3 frost = mix(vec3(0.30, 0.34, 0.45), vec3(0.62, 0.72, 0.95), glow);
+    vec3 frost = mix(vec3(0.24, 0.28, 0.38), vec3(0.52, 0.64, 0.92), glow);
     float streak = exp(-pow((y - lh) * 6.0, 2.0)) * (0.35 + e * 0.5);  // светлая полоса, как в инее
-    frost += vec3(0.85, 0.90, 1.0) * streak * 0.55;
+    frost += vec3(0.80, 0.87, 1.0) * streak * 0.38;
     col = mix(col, frost, clamp(listen, 0.0, 1.0) * clamp(0.35 + glow, 0.0, 1.0));
 
     // ── ошибка: тот же свет, но красный

@@ -27,13 +27,11 @@ Island {
     readonly property bool toastImage: Activity.image !== ""
 
     strong: mode !== "compact" || toast || notif || assist
-    // Вега: весь остров — эффект; слушает и думает — шар, говорит — пилюля (форма перетекает пружинкой)
-    readonly property bool assistTalk: Assistant.state === "speaking"
-    pill: assist
-    targetWidth: assist ? (assistTalk ? 236 : 92) : notif ? 460 : toast ? (toastImage ? 400 : 360)
+    // Вега: остров раскрывается как обычная карточка, внутри — свет Gemini (GeminiIsland) вместо надписей
+    targetWidth: assist ? 540 : notif ? 460 : toast ? (toastImage ? 400 : 360)
                : mode === "media" || mode === "weather" ? Math.max(520, compact.implicitWidth + 30)
                : mode === "calendar" ? Math.max(340, compact.implicitWidth + 30) : compact.implicitWidth + 30
-    targetHeight: assist ? 92 : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
+    targetHeight: assist ? 76 : notif ? Math.max(72, notifCard.implicitHeight + 28) : toast ? (toastImage ? 84 : 64)
                 : mode === "media" ? 184 : mode === "weather" ? 196 : mode === "calendar" ? 328 : Theme.barHeight
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
@@ -216,7 +214,7 @@ Island {
     }
 
     // ───────────── ассистент ─────────────
-    // весь остров — свет Gemini в стекле (GeminiIsland), без надписей; клик — стоп
+    // внутри раскрытого острова — свет Gemini (GeminiIsland) во всю карточку, без надписей; клик — стоп
     GeminiIsland {
         id: assistBox
         anchors.fill: parent
