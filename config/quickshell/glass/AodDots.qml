@@ -23,7 +23,7 @@ Column {
     component Matrix: Grid {
         id: mx
         property string ch: "0"
-        property color lit: Theme.fg
+        property color lit: m.clock.cFg
         property real appear: 1
         property bool colon: false
         columns: colon ? 1 : 5
@@ -37,7 +37,7 @@ Column {
                 readonly property bool on: mx.colon ? (row === 2 || row === 4)
                                                     : ((m.glyphs[mx.ch] ?? m.glyphs["0"])[row] >> (4 - col) & 1) === 1
                 width: m.dot; height: m.dot; radius: m.dot / 2
-                color: on ? mx.lit : Qt.alpha(Theme.fg, 0.07)
+                color: on ? mx.lit : Qt.alpha(m.clock.cFg, 0.07)
                 scale: (on ? 1 : 0.5) * Math.min(1.15, m.clock.at(mx.appearAt + col * 0.02 + row * 0.012, 0.45))
                 Behavior on color { ColorAnimation { duration: 320 } }
                 Behavior on scale { enabled: m.clock.p >= 1; NumberAnimation { duration: 420; easing.type: Easing.OutBack } }
@@ -49,9 +49,9 @@ Column {
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 24 * m.k
-        Matrix { ch: m.clock.hh[0]; lit: Theme.primary; appearAt: 0.04 }
-        Matrix { ch: m.clock.hh[1]; lit: Theme.primary; appearAt: 0.10 }
-        Matrix { colon: true; lit: Theme.tertiary; appearAt: 0.16 }
+        Matrix { ch: m.clock.hh[0]; lit: m.clock.cPrimary; appearAt: 0.04 }
+        Matrix { ch: m.clock.hh[1]; lit: m.clock.cPrimary; appearAt: 0.10 }
+        Matrix { colon: true; lit: m.clock.cTertiary; appearAt: 0.16 }
         Matrix { ch: m.clock.mm[0]; appearAt: 0.20 }
         Matrix { ch: m.clock.mm[1]; appearAt: 0.26 }
     }
@@ -60,7 +60,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: m.clock.date
         size: Math.max(8, 26 * m.k); weight: 550
-        color: Theme.fgVariant
+        color: m.clock.dateColor
         opacity: m.clock.fade(0.5, 0.3)
         elide: Text.ElideNone
     }

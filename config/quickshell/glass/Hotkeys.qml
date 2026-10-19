@@ -14,7 +14,7 @@ PanelWindow {
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: open || card.opacity > 0
+    visible: open && scrim.backingWindowVisible || card.opacity > 0
     WlrLayershell.namespace: "quickshell-settings"       // то же правило блюра, что у окна настроек
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -158,13 +158,16 @@ PanelWindow {
         return cols;
     }
 
-    // затемнение с точками (волна идёт из центра), клик мимо — закрыть
-    Scrim {
-        anchors.fill: parent
+    // затемнение с точками (волна идёт из центра) — своим слоем под окном
+    ScrimWindow {
+        id: scrim
+        screen: win.screen
+        hold: win.visible
         shown: win.open
         origin: Qt.point(width / 2, height / 2)
-        onClicked: win.open = false
     }
+    // клик мимо — закрыть
+    MouseArea { anchors.fill: parent; onClicked: win.open = false }
 
     Item {
         id: card
@@ -184,7 +187,7 @@ PanelWindow {
         Row {
             x: 30; y: 24
             spacing: 12
-            Icon { anchors.verticalCenter: parent.verticalCenter; name: "keyboard"; size: 28; fill: 1; color: Theme.primary }
+            Icon { anchors.verticalCenter: parent.verticalCenter; name: "keyboard"; size: 28; fill: 1; color: Theme.primaryText }
             Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Горячие клавиши", "Keyboard shortcuts"); size: 24; weight: 750; elide: Text.ElideNone }
         }
         IconButton {

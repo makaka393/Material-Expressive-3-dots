@@ -243,10 +243,12 @@ hl.window_rule({ name = "steam-big-picture", match = { class = "steam", title = 
 -- CS2 — без vsync композитора (tearing), меньше инпут-лаг
 hl.window_rule({ name = "cs2-immediate", match = { class = "cs2" }, immediate = true })
 
--- слои оболочки glass (затемнение под окнами — до 0.35 альфы, блюр только под карточками: ignore_alpha 0.4)
+-- слои оболочки glass: затемнение под окнами — свой слой без блюра (quickshell-scrim), у карточек
+-- блюр под любой прозрачностью стекла (ignore_alpha 0.01)
 hl.layer_rule({ name = "glass-bar", match = { namespace = "quickshell-bar" }, blur = true, blur_popups = true, ignore_alpha = 0.01, no_anim = true })
-hl.layer_rule({ name = "glass-settings", match = { namespace = "quickshell-settings" }, blur = true, ignore_alpha = 0.4 })
-hl.layer_rule({ name = "glass-launcher", match = { namespace = "quickshell-launcher" }, blur = true, ignore_alpha = 0.4 })
+hl.layer_rule({ name = "glass-settings", match = { namespace = "quickshell-settings" }, blur = true, ignore_alpha = 0.01 })
+hl.layer_rule({ name = "glass-launcher", match = { namespace = "quickshell-launcher" }, blur = true, ignore_alpha = 0.01 })
+hl.layer_rule({ name = "glass-scrim", match = { namespace = "quickshell-scrim" }, no_anim = true })
 hl.layer_rule({ name = "glow", match = { namespace = "quickshell-glow" }, no_anim = true })
 hl.layer_rule({ name = "selection", match = { namespace = "selection" }, no_anim = true })
 hl.layer_rule({ name = "rofi", match = { namespace = "rofi" }, blur = true, ignore_alpha = 0.3 })

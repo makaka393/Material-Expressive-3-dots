@@ -30,7 +30,7 @@ Column {
             // оставшаяся часть часа — ровная тонкая дорожка
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: Qt.alpha(Theme.fg, 0.14)
+                strokeColor: Qt.alpha(o.clock.cFg, 0.14)
                 strokeWidth: 6 * o.k
                 capStyle: ShapePath.RoundCap
                 PathAngleArc {
@@ -43,7 +43,7 @@ Column {
             // прошедшие минуты — волна
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: Theme.primary
+                strokeColor: o.clock.cPrimary
                 strokeWidth: 11 * o.k
                 capStyle: ShapePath.RoundCap
                 joinStyle: ShapePath.RoundJoin
@@ -71,7 +71,7 @@ Column {
             width: 18 * o.k; height: width; radius: width / 2
             x: ring.d / 2 + r * Math.sin(a) - width / 2
             y: ring.d / 2 - r * Math.cos(a) - height / 2
-            color: Theme.tertiary
+            color: o.clock.cTertiary
             scale: o.clock.at(0.35, 0.5)
             Behavior on color { ColorAnimation { duration: 300 } }
         }
@@ -80,7 +80,7 @@ Column {
             anchors.centerIn: parent
             AodDigit { ch: o.clock.hh[0]; size: 104 * o.k; weight: 480; appear: o.clock.at(0.10, 0.5) }
             AodDigit { ch: o.clock.hh[1]; size: 104 * o.k; weight: 480; appear: o.clock.at(0.15, 0.5) }
-            AodDigit { ch: ":"; size: 104 * o.k; weight: 480; color: Theme.primary; appear: o.clock.at(0.20, 0.5) }
+            AodDigit { ch: ":"; size: 104 * o.k; weight: 480; color: o.clock.cPrimary; appear: o.clock.at(0.20, 0.5) }
             AodDigit { ch: o.clock.mm[0]; size: 104 * o.k; weight: 480; appear: o.clock.at(0.25, 0.5) }
             AodDigit { ch: o.clock.mm[1]; size: 104 * o.k; weight: 480; appear: o.clock.at(0.30, 0.5) }
         }
@@ -90,7 +90,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: o.clock.date
         size: Math.max(8, 26 * o.k); weight: 550
-        color: Theme.fgVariant
+        color: o.clock.dateColor
         opacity: o.clock.fade(0.5, 0.3)
         elide: Text.ElideNone
     }

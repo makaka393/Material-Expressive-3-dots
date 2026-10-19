@@ -168,7 +168,7 @@ Item {
                 spacing: 10 * s.k
                 Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.longDate(clock.date); size: 18 * s.k; weight: 650; elide: Text.ElideNone }
                 Rectangle { anchors.verticalCenter: parent.verticalCenter; visible: Weather.ready; width: 4 * s.k; height: width; radius: width / 2; color: Qt.alpha(Theme.fg, 0.4) }
-                Icon { anchors.verticalCenter: parent.verticalCenter; visible: Weather.ready; name: Weather.icon(Weather.code, Weather.isDay); size: 26 * s.k; fill: 1; color: Theme.tertiary }
+                Icon { anchors.verticalCenter: parent.verticalCenter; visible: Weather.ready; name: Weather.icon(Weather.code, Weather.isDay); size: 26 * s.k; fill: 1; color: Theme.tertiaryText }
                 Label { anchors.verticalCenter: parent.verticalCenter; visible: Weather.ready; text: Math.round(Weather.temp) + "°"; size: 18 * s.k; weight: 650; elide: Text.ElideNone }
                 Label { anchors.verticalCenter: parent.verticalCenter; visible: Weather.ready; text: Weather.describe(Weather.code); size: 16 * s.k; color: Theme.fgVariant; elide: Text.ElideNone }
             }
@@ -196,7 +196,7 @@ Item {
                 id: musicRow
                 anchors.centerIn: parent
                 spacing: 8 * s.k
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: musicPill.has && musicPill.pl.isPlaying ? "music_note" : "pause"; size: 22 * s.k; fill: 1; color: Theme.primary }
+                Icon { anchors.verticalCenter: parent.verticalCenter; name: musicPill.has && musicPill.pl.isPlaying ? "music_note" : "pause"; size: 22 * s.k; fill: 1; color: Theme.primaryText }
                 Label {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.min(implicitWidth, 460 * s.k)
@@ -214,7 +214,7 @@ Item {
                 id: notifRow
                 anchors.centerIn: parent
                 spacing: 6 * s.k
-                Icon { anchors.verticalCenter: parent.verticalCenter; name: "notifications"; size: 22 * s.k; fill: 1; color: Theme.tertiary }
+                Icon { anchors.verticalCenter: parent.verticalCenter; name: "notifications"; size: 22 * s.k; fill: 1; color: Theme.tertiaryText }
                 Label { anchors.verticalCenter: parent.verticalCenter; text: Notifs.count; size: 16 * s.k; weight: 700; elide: Text.ElideNone }
             }
         }

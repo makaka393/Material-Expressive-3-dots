@@ -98,6 +98,9 @@ Item {
             readonly property color cTop: exact ? src : sw.pal.p
             readonly property color cLeft: exact ? soft(0, 0.55, 0.76) : sw.pal.s
             readonly property color cRight: exact ? soft(0.025, 0.85, 0.65) : sw.pal.t
+            // контейнер — как в exact-accent.py: тот же оттенок, приглушённый и тёмный
+            readonly property color cMid: exact ? Qt.hsla(src.hslHue, Math.max(0.25, Math.min(0.8, src.hslSaturation) * 0.85),
+                                                          root.mode === "light" ? 0.88 : 0.24, 1) : sw.pal.pc
             Rectangle { anchors.fill: parent; radius: face.r; color: face.cTop }
             Repeater {
                 model: 2
@@ -116,8 +119,8 @@ Item {
             Rectangle {
                 anchors.centerIn: parent
                 width: parent.width * 0.42; height: width; radius: width / 2
-                color: sw.pal.pc
-                Icon { anchors.centerIn: parent; name: "check"; size: 14; weight: 700; color: sw.pal.p; opacity: sw.applied ? 1 : 0 }
+                color: face.cMid
+                Icon { anchors.centerIn: parent; name: "check"; size: 14; weight: 700; color: face.cTop; opacity: sw.applied ? 1 : 0 }
             }
         }
         MouseArea { id: swMouse; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: sw.picked() }
@@ -128,7 +131,7 @@ Item {
         id: header
         anchors { top: parent.top; left: parent.left; topMargin: 22; leftMargin: 28 }
         spacing: 10
-        Icon { anchors.verticalCenter: parent.verticalCenter; name: "wallpaper"; size: 26; fill: 1; color: Theme.primary }
+        Icon { anchors.verticalCenter: parent.verticalCenter; name: "wallpaper"; size: 26; fill: 1; color: Theme.primaryText }
         Label { anchors.verticalCenter: parent.verticalCenter; text: I18n.t("Обои и тема", "Wallpaper & style"); size: 22; weight: 750; elide: Text.ElideNone }
         Label {
             anchors.verticalCenter: parent.verticalCenter
@@ -313,7 +316,7 @@ Item {
                         id: kindRow
                         anchors.centerIn: parent
                         spacing: 4
-                        Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.kind === "movie" ? "play_circle" : "animation"; size: 15; fill: 1; color: Theme.primary }
+                        Icon { anchors.verticalCenter: parent.verticalCenter; name: parent.parent.kind === "movie" ? "play_circle" : "animation"; size: 15; fill: 1; color: Theme.primaryText }
                         Label { anchors.verticalCenter: parent.verticalCenter; text: parent.parent.kind === "movie" ? I18n.t("видео", "video") : "GIF"; size: 11; weight: 700; elide: Text.ElideNone }
                     }
                 }

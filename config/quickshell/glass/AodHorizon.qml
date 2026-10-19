@@ -46,7 +46,7 @@ Column {
                 visible: !hz.day
                 x: modelData[0] * sky.w; y: modelData[1] * sky.baseY
                 width: (index % 3 === 0 ? 7 : 4) * hz.k; height: width; radius: width / 2
-                color: Theme.fg
+                color: hz.clock.cFg
                 opacity: (index % 3 === 0 ? 0.55 : 0.32) * hz.clock.fade(0.3 + index * 0.03, 0.3)
             }
         }
@@ -57,7 +57,7 @@ Column {
             // весь путь — пунктиром
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: Qt.alpha(Theme.fg, 0.22)
+                strokeColor: Qt.alpha(hz.clock.cFg, 0.22)
                 strokeWidth: 4 * hz.k
                 strokeStyle: ShapePath.DashLine
                 dashPattern: [0.1, 3.2]
@@ -67,7 +67,7 @@ Column {
             // пройденная часть
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: hz.day ? Theme.primary : Theme.tertiary
+                strokeColor: hz.day ? hz.clock.cPrimary : hz.clock.cTertiary
                 strokeWidth: 6 * hz.k
                 capStyle: ShapePath.RoundCap
                 PathAngleArc { centerX: sky.w / 2; centerY: sky.baseY; radiusX: sky.rx; radiusY: sky.ry
@@ -76,7 +76,7 @@ Column {
             // горизонт
             ShapePath {
                 fillColor: "transparent"
-                strokeColor: Qt.alpha(Theme.fg, 0.30)
+                strokeColor: Qt.alpha(hz.clock.cFg, 0.30)
                 strokeWidth: 4 * hz.k
                 capStyle: ShapePath.RoundCap
                 startX: 14 * hz.k; startY: sky.baseY
@@ -94,20 +94,20 @@ Column {
             Rectangle {                                  // свечение
                 anchors.centerIn: parent
                 width: parent.width * 1.7; height: width; radius: width / 2
-                color: Qt.alpha(hz.day ? Theme.primary : Theme.tertiary, 0.16)
+                color: Qt.alpha(hz.day ? hz.clock.cPrimary : hz.clock.cTertiary, 0.16)
             }
             AodShape {
                 anchors.fill: parent
                 visible: hz.day
                 kind: "cookie"; lobes: 10
-                color: Theme.primary
+                color: hz.clock.cPrimary
             }
             Icon {
                 anchors.centerIn: parent
                 visible: !hz.day
                 name: "bedtime"; fill: 1
                 size: 70 * hz.k
-                color: Theme.tertiary
+                color: hz.clock.cTertiary
             }
         }
     }
@@ -121,21 +121,21 @@ Column {
             anchors.horizontalCenter: parent.horizontalCenter
             AodDigit { ch: hz.clock.hh[0]; size: 100 * hz.k; weight: 520; appear: hz.clock.at(0.20, 0.5) }
             AodDigit { ch: hz.clock.hh[1]; size: 100 * hz.k; weight: 520; appear: hz.clock.at(0.25, 0.5) }
-            AodDigit { ch: ":"; size: 100 * hz.k; weight: 520; color: hz.day ? Theme.primary : Theme.tertiary; appear: hz.clock.at(0.30, 0.5) }
+            AodDigit { ch: ":"; size: 100 * hz.k; weight: 520; color: hz.day ? hz.clock.cPrimary : hz.clock.cTertiary; appear: hz.clock.at(0.30, 0.5) }
             AodDigit { ch: hz.clock.mm[0]; size: 100 * hz.k; weight: 520; appear: hz.clock.at(0.35, 0.5) }
             AodDigit { ch: hz.clock.mm[1]; size: 100 * hz.k; weight: 520; appear: hz.clock.at(0.40, 0.5) }
         }
         Column {
             anchors { left: parent.left; leftMargin: 8 * hz.k; verticalCenter: parent.verticalCenter }
             opacity: hz.clock.fade(0.5, 0.3)
-            Icon { name: hz.day ? "wb_twilight" : "bedtime"; size: Math.max(8, 26 * hz.k); fill: 1; color: Theme.fgVariant }
-            Label { text: hz.hm(hz.day ? hz.sun[0] : hz.sun[1]); size: Math.max(8, 21 * hz.k); weight: 600; color: Theme.fgVariant; elide: Text.ElideNone }
+            Icon { name: hz.day ? "wb_twilight" : "bedtime"; size: Math.max(8, 26 * hz.k); fill: 1; color: hz.clock.cDim }
+            Label { text: hz.hm(hz.day ? hz.sun[0] : hz.sun[1]); size: Math.max(8, 21 * hz.k); weight: 600; color: hz.clock.cDim; elide: Text.ElideNone }
         }
         Column {
             anchors { right: parent.right; rightMargin: 8 * hz.k; verticalCenter: parent.verticalCenter }
             opacity: hz.clock.fade(0.5, 0.3)
-            Icon { anchors.right: parent.right; name: hz.day ? "bedtime" : "wb_twilight"; size: Math.max(8, 26 * hz.k); fill: 1; color: Theme.fgVariant }
-            Label { text: hz.hm(hz.day ? hz.sun[1] : hz.sun[0]); size: Math.max(8, 21 * hz.k); weight: 600; color: Theme.fgVariant; elide: Text.ElideNone }
+            Icon { anchors.right: parent.right; name: hz.day ? "bedtime" : "wb_twilight"; size: Math.max(8, 26 * hz.k); fill: 1; color: hz.clock.cDim }
+            Label { text: hz.hm(hz.day ? hz.sun[1] : hz.sun[0]); size: Math.max(8, 21 * hz.k); weight: 600; color: hz.clock.cDim; elide: Text.ElideNone }
         }
     }
     Label {
@@ -143,7 +143,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: hz.clock.date
         size: Math.max(8, 26 * hz.k); weight: 550
-        color: Theme.fgVariant
+        color: hz.clock.dateColor
         opacity: hz.clock.fade(0.5, 0.3)
         elide: Text.ElideNone
     }

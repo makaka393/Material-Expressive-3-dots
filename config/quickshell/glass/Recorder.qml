@@ -122,7 +122,7 @@ Island {
             Icon {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.busy && !root.rec
-                name: "progress_activity"; size: 18; color: Theme.primary
+                name: "progress_activity"; size: 18; color: Theme.primaryText
                 RotationAnimator on rotation { running: root.busy && !root.rec; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
             }
             Label {

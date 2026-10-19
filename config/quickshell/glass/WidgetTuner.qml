@@ -31,8 +31,8 @@ Item {
     Behavior on height { Anim { kind: "fast" } }
 
     MouseArea { anchors.fill: parent }                 // клики по панели не уходят на рабочий стол
-    Rectangle { anchors.fill: parent; radius: 32; color: Qt.alpha(Theme.surfaceLow, 0.9) }
-    GlassSurface { anchors.fill: parent; radius: 32; strong: true; sheenEnd: 0.2 }
+    // стекло из размытых обоев рабочего стола (как у виджетов), с прозрачностью темы
+    WidgetSurface { anchors.fill: parent; radius: 32; tone: "neutral"; cfg: ({ alpha: Theme.glassStrong.a }) }
 
     Column {
         id: col

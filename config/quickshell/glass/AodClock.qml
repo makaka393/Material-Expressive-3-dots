@@ -18,6 +18,16 @@ Item {
     property real k: 1
     property real p: 1
     property bool showDate: true
+    // цвета циферблата: на AOD и экране блокировки — цвета темы, на рабочем столе виджет «Часы»
+    // передаёт свои (ink), подобранные под его фон, — иначе на светлом стекле светлые стрелки терялись.
+    //   ink: { fg, dim, primary, tertiary, base } или null
+    property var ink: null
+    readonly property color cFg: ink ? ink.fg : Theme.fg
+    readonly property color cDim: ink ? ink.dim : Theme.fgVariant
+    readonly property color cPrimary: ink ? ink.primary : Theme.primary
+    readonly property color cTertiary: ink ? ink.tertiary : Theme.tertiary
+    readonly property color cBase: ink ? ink.base : Theme.surface
+    property color dateColor: cDim                // дата под циферблатом (на рабочем столе — под цвет обоев)
     // на рабочем столе: подложки фигур — стекло темы (WidgetSurface: размытие и прозрачность из
     // настроек виджета и оболочки) вместо полупрозрачной заливки AOD. { cfg, tone } или null
     property var surface: null
@@ -84,6 +94,7 @@ Item {
                             rotation: (1 - Math.min(1, cell.s)) * (cell.index % 2 ? 40 : -40)
                         }
                         WidgetSurface {
+                            id: cellSurf
                             anchors.fill: parent
                             visible: !!c.surface
                             cfg: c.surface ? c.surface.cfg : ({})
@@ -97,7 +108,8 @@ Item {
                             anchors.centerIn: parent
                             ch: cell.modelData.ch
                             size: 92 * c.k; weight: 640
-                            color: cell.modelData.fg
+                            // на рабочем столе форма — стекло: цифра подстраивается под то, что под ней видно
+                            color: c.surface ? Theme.legible(cell.modelData.fg, cellSurf.seen, 4.5) : cell.modelData.fg
                             appear: c.at(0.14 + cell.index * 0.08, 0.5)
                         }
                     }
@@ -108,7 +120,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: c.date
                 size: Math.max(8, 24 * c.k); weight: 550
-                color: Theme.fgVariant
+                color: c.dateColor
                 opacity: c.fade(0.5, 0.3)
                 elide: Text.ElideNone
             }
@@ -145,7 +157,7 @@ Item {
                     scale: dial.s
                     rotation: (1 - Math.min(1, dial.s)) * -120
                     ShapePath {
-                        fillColor: Qt.alpha(Theme.primary, 0.16)
+                        fillColor: Qt.alpha(c.cPrimary, 0.16)
                         strokeWidth: -1
                         PathPolyline {
                             path: {
@@ -170,7 +182,7 @@ Item {
                         width: (index % 3 === 0 ? 10 : 6) * c.k; height: width; radius: width / 2
                         x: dial.d / 2 + r * Math.sin(a) - width / 2
                         y: dial.d / 2 - r * Math.cos(a) - height / 2
-                        color: index % 3 === 0 ? Theme.primary : Qt.alpha(Theme.fg, 0.4)
+                        color: index % 3 === 0 ? c.cPrimary : Qt.alpha(c.cFg, 0.4)
                         opacity: c.fade(0.15 + index * 0.02, 0.2)
                     }
                 }
@@ -178,7 +190,7 @@ Item {
                 Rectangle {
                     width: 22 * c.k; height: dial.d * 0.27 + width / 2; radius: width / 2
                     x: dial.d / 2 - width / 2; y: dial.d / 2 - height + width / 2
-                    color: Theme.primary
+                    color: c.cPrimary
                     antialiasing: true
                     transform: Rotation {
                         origin.x: 11 * c.k; origin.y: dial.d * 0.27
@@ -189,7 +201,7 @@ Item {
                 Rectangle {
                     width: 12 * c.k; height: dial.d * 0.39 + width / 2; radius: width / 2
                     x: dial.d / 2 - width / 2; y: dial.d / 2 - height + width / 2
-                    color: Theme.fg
+                    color: c.cFg
                     antialiasing: true
                     transform: Rotation {
                         origin.x: 6 * c.k; origin.y: dial.d * 0.39
@@ -200,8 +212,8 @@ Item {
                 Rectangle {
                     anchors.centerIn: parent
                     width: 26 * c.k; height: width; radius: width / 2
-                    color: Theme.surface
-                    border.width: 6 * c.k; border.color: Theme.primary
+                    color: c.cBase
+                    border.width: 6 * c.k; border.color: c.cPrimary
                     scale: dial.s
                 }
             }
@@ -210,7 +222,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: c.date
                 size: Math.max(8, 26 * c.k); weight: 550
-                color: Theme.fgVariant
+                color: c.dateColor
                 opacity: c.fade(0.5, 0.3)
                 elide: Text.ElideNone
             }

@@ -103,7 +103,7 @@ Item {
                     id: wRow
                     anchors.centerIn: parent
                     spacing: 10
-                    Icon { anchors.verticalCenter: parent.verticalCenter; name: Weather.icon(Weather.code, Weather.isDay); size: 30; fill: 1; color: Theme.tertiary }
+                    Icon { anchors.verticalCenter: parent.verticalCenter; name: Weather.icon(Weather.code, Weather.isDay); size: 30; fill: 1; color: Theme.tertiaryText }
                     Label { anchors.verticalCenter: parent.verticalCenter; text: Math.round(Weather.temp) + "°"; size: 22; weight: 650; elide: Text.ElideNone }
                     Label { anchors.verticalCenter: parent.verticalCenter; text: Weather.describe(Weather.code) + " · " + Theme.city; size: 17; color: Theme.fgVariant; elide: Text.ElideNone }
                 }
@@ -135,7 +135,7 @@ Item {
                         sourceSize.width: 132
                         asynchronous: true
                     }
-                    Icon { anchors.centerIn: parent; visible: Players.art(musicCard.pl) === ""; name: "music_note"; size: 24; color: Theme.primary }
+                    Icon { anchors.centerIn: parent; visible: Players.art(musicCard.pl) === ""; name: "music_note"; size: 24; color: Theme.primaryText }
                     RotationAnimation on rotation {
                         from: 0; to: 360; duration: 12000; loops: Animation.Infinite
                         running: musicCard.has && musicCard.pl.isPlaying

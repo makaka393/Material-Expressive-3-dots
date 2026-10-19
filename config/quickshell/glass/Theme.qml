@@ -72,9 +72,11 @@ Singleton {
     // стекло — матовое, как плавающие панели One UI: чуть высветленная поверхность поверх сильного блюра
     readonly property color frost: Qt.tint(surfaceHigh, Qt.rgba(1, 1, 1, 0.08))
     readonly property color glass: m3 ? Qt.alpha(surfaceMid, m3Opacity) : Qt.alpha(frost, glassOpacity)
-    // раскрытые карточки/окна не бывают совсем прозрачными — иначе нечитаемо
-    readonly property color glassStrong: m3 ? Qt.alpha(surfaceHigh, Math.max(0.45, Math.min(1, m3Opacity + 0.25)))
-                                            : Qt.alpha(frost, Math.max(0.45, Math.min(1, glassOpacity + 0.25)))
+    // раскрытые карточки/окна (меню, настройки, лаунчер) — та же прозрачность, что у темы, чуть плотнее:
+    // читаемость даёт блюр под ними (у их слоёв ignore_alpha 0.01, затемнение — отдельным слоем)
+    readonly property real strongBoost: 0.08
+    readonly property color glassStrong: m3 ? Qt.alpha(surfaceHigh, Math.min(1, m3Opacity + strongBoost))
+                                            : Qt.alpha(frost, Math.min(1, glassOpacity + strongBoost))
     readonly property color glassBorder: m3 ? Qt.alpha(fg, m3Opacity < 0.97 ? 0.07 : 0) : Qt.alpha(fg, 0.10)
     readonly property color glassSheen: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.09)      // блик сверху
     readonly property color glassRim: m3 ? "transparent" : Qt.rgba(1, 1, 1, 0.34)        // светлая кромка по верхнему краю
@@ -93,7 +95,7 @@ Singleton {
         if (contrast(c, bg) >= k) return c;
         const up = lum(bg) < 0.18;
         for (let l = c.hslLightness; up ? l <= 0.97 : l >= 0.03; l += up ? 0.04 : -0.04) {
-            const t = Qt.hsla(c.hslHue, Math.min(1, c.hslSaturation * 1.1), l, 1);
+            const t = Qt.hsla(Math.max(0, c.hslHue), Math.min(1, c.hslSaturation * 1.1), l, 1);   // у серых оттенок -1
             if (contrast(t, bg) >= k) return t;
         }
         return up ? "white" : "black";

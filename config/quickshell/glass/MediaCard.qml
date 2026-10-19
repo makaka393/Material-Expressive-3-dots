@@ -93,12 +93,12 @@ Item {
             spacing: 2
             Row {
                 spacing: 6
-                Icon { name: "graphic_eq"; size: 14; color: Theme.primary; fill: 1 }
+                Icon { name: "graphic_eq"; size: 14; color: Theme.primaryText; fill: 1 }
                 Label {
                     text: root.player?.identity ?? ""
                     size: 12
                     weight: 600
-                    color: Theme.primary
+                    color: Theme.primaryText
                 }
             }
             Label {

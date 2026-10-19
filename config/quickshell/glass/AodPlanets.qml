@@ -36,15 +36,15 @@ Column {
             preferredRendererType: Shape.CurveRenderer
             opacity: pl.clock.fade(0.1, 0.4)
             ShapePath {
-                fillColor: "transparent"; strokeColor: Qt.alpha(Theme.fg, 0.13); strokeWidth: 3 * pl.k
+                fillColor: "transparent"; strokeColor: Qt.alpha(pl.clock.cFg, 0.13); strokeWidth: 3 * pl.k
                 PathAngleArc { centerX: sys.d / 2; centerY: sys.d / 2; radiusX: sys.rOut; radiusY: sys.rOut; startAngle: 0; sweepAngle: 360 }
             }
             ShapePath {
-                fillColor: "transparent"; strokeColor: Qt.alpha(Theme.fg, 0.09); strokeWidth: 3 * pl.k
+                fillColor: "transparent"; strokeColor: Qt.alpha(pl.clock.cFg, 0.09); strokeWidth: 3 * pl.k
                 PathAngleArc { centerX: sys.d / 2; centerY: sys.d / 2; radiusX: sys.rIn; radiusY: sys.rIn; startAngle: 0; sweepAngle: 360 }
             }
             ShapePath {
-                fillColor: "transparent"; strokeColor: Qt.alpha(Theme.primary, 0.55); strokeWidth: 5 * pl.k
+                fillColor: "transparent"; strokeColor: Qt.alpha(pl.clock.cPrimary, 0.55); strokeWidth: 5 * pl.k
                 capStyle: ShapePath.RoundCap
                 PathAngleArc { centerX: sys.d / 2; centerY: sys.d / 2; radiusX: sys.rOut; radiusY: sys.rOut; startAngle: -90; sweepAngle: sys.minDeg % 360 }
             }
@@ -70,7 +70,7 @@ Column {
             width: 26 * pl.k; height: width; radius: width / 2
             x: sys.px(sys.hourDeg, sys.rIn) - width / 2
             y: sys.py(sys.hourDeg, sys.rIn) - height / 2
-            color: Theme.tertiary
+            color: pl.clock.cTertiary
             scale: pl.clock.at(0.3, 0.5)
             Behavior on color { ColorAnimation { duration: 300 } }
         }
@@ -84,7 +84,7 @@ Column {
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
-                color: Theme.primary
+                color: pl.clock.cPrimary
                 Behavior on color { ColorAnimation { duration: 300 } }
             }
             Row {
@@ -99,7 +99,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: pl.clock.date
         size: Math.max(8, 26 * pl.k); weight: 550
-        color: Theme.fgVariant
+        color: pl.clock.dateColor
         opacity: pl.clock.fade(0.5, 0.3)
         elide: Text.ElideNone
     }

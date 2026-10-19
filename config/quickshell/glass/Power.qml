@@ -21,8 +21,17 @@ Island {
 
     strong: open
     targetWidth: open ? 380 : Theme.barHeight
-    // высота: быстрые настройки + история уведомлений (до 4 штук видно, дальше прокрутка)
-    readonly property real histH: Notifs.count > 0 ? 44 + Math.min(Notifs.count, 4) * 66 : 0
+    // высота: быстрые настройки + история уведомлений (4 последних видно целиком, дальше прокрутка).
+    // Карточка с текстом — три строки, без текста — две; высоты меряем невидимыми образцами
+    NotifCard { id: probeFull; visible: false; width: 300; compact: true; n: ({ appName: "A", summary: "S", body: "B", actions: [] }) }
+    NotifCard { id: probeShort; visible: false; width: 300; compact: true; n: ({ appName: "A", summary: "S", body: "", actions: [] }) }
+    function cardH(n) { return (n && (n.body || "").replace(/<[^>]*>/g, "") !== "" ? probeFull : probeShort).implicitHeight + 20; }
+    readonly property real histH: {
+        const l = Notifs.list, k = Math.min(l.length, 4);
+        let h = 0;
+        for (let i = 0; i < k; i++) h += cardH(l[l.length - 1 - i]) + (i > 0 ? 6 : 0);
+        return k > 0 ? 50 + h : 0;
+    }
     targetHeight: open ? (detail !== "" ? 500 : 500 + histH) : Theme.barHeight
 
     readonly property var actions: [
@@ -138,7 +147,7 @@ Island {
             id: gaugeIcon
             anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter; verticalCenterOffset: -4 }
             name: gauge.icon; size: 19; fill: 1
-            color: gauge.hot ? Theme.error : Theme.primary
+            color: gauge.hot ? Theme.error : Theme.primaryText
         }
         Label {
             anchors { left: gaugeIcon.right; leftMargin: 6; verticalCenter: parent.verticalCenter; verticalCenterOffset: -4 }
@@ -391,7 +400,7 @@ Island {
                     anchors { left: parent.left; leftMargin: 8; top: parent.top }
                     height: 32
                     text: I18n.t("Уведомления", "Notifications")
-                    size: 14; weight: 700; color: Theme.primary; elide: Text.ElideNone
+                    size: 14; weight: 700; color: Theme.primaryText; elide: Text.ElideNone
                 }
                 Rectangle {
                     anchors { right: parent.right; top: parent.top }
@@ -401,20 +410,22 @@ Island {
                     MouseArea { id: clearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notifs.clearAll() }
                 }
                 ListView {
-                    anchors { top: parent.top; topMargin: 40; left: parent.left; right: parent.right; bottom: parent.bottom }
+                    anchors { top: parent.top; topMargin: 40; left: parent.left; right: parent.right; bottom: parent.bottom; bottomMargin: 10 }
                     clip: true
                     spacing: 6
                     model: Notifs.list.slice().reverse()
                     boundsBehavior: Flickable.StopAtBounds
+                    // высота карточки — по содержимому (с текстом или без), как считает histH
                     delegate: Rectangle {
+                        id: nd
                         required property var modelData
                         width: ListView.view.width
-                        height: 60
+                        height: root.cardH(modelData)
                         radius: 18
                         color: Theme.glassChip
                         NotifCard {
-                            anchors { fill: parent; margins: 10; rightMargin: 8 }
-                            n: parent.modelData
+                            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10; rightMargin: 8 }
+                            n: nd.modelData
                             compact: true
                         }
                     }

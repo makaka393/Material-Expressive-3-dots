@@ -39,7 +39,7 @@ Item {
     component Spinner: Icon {
         name: "progress_activity"
         size: 20
-        color: Theme.primary
+        color: Theme.primaryText
         RotationAnimation on rotation { from: 0; to: 360; duration: 900; loops: Animation.Infinite; running: true }
     }
 
@@ -216,7 +216,7 @@ Item {
                     anchors { left: parent.left; right: goBtn.left; rightMargin: 8 }
                     height: 42; radius: 21
                     color: Qt.alpha(Theme.fg, 0.08)
-                    border.width: pwInput.activeFocus ? 2 : 0; border.color: Theme.primary
+                    border.width: pwInput.activeFocus ? 2 : 0; border.color: Theme.primaryText
                     TextInput {
                         id: pwInput
                         anchors { left: parent.left; leftMargin: 16; right: eye.left; rightMargin: 6; verticalCenter: parent.verticalCenter }

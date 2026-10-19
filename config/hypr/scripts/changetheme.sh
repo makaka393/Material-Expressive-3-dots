@@ -144,9 +144,10 @@ if command -v plasma-apply-colorscheme >/dev/null && [ -f "$HOME/.local/share/co
   rm -f "$HOME/.cache/icon-cache.kcache"
   dbus-send --session --type=signal /KIconLoader org.kde.KIconLoader.iconChanged int32:0 2>/dev/null || true
 fi
-# ---- экран входа SDDM (тема glass): те же цвета и обои
+# ---- экран входа SDDM (тема glass): те же цвета и обои — только пока SDDM включён
+# (вместо него может быть экран блокировки оболочки: lockscreen-instead-of-sddm.sh)
 SDDM_USER=/usr/share/sddm/themes/glass/user
-if [ -d "$SDDM_USER" ] && [ -w "$SDDM_USER" ] && [ -f "$STATE/sddm-colors.conf" ]; then
+if systemctl -q is-enabled sddm 2>/dev/null && [ -d "$SDDM_USER" ] && [ -w "$SDDM_USER" ] && [ -f "$STATE/sddm-colors.conf" ]; then
   WP=$(readlink -f "$STATE/wallpaper" 2>/dev/null || true)
   if [ -n "$WP" ] && [ -f "$WP" ] && [ "$(cat "$SDDM_USER/.src" 2>/dev/null || true)" != "$WP" ]; then
     rm -f "$SDDM_USER"/bg.* "$SDDM_USER/frame.jpg"

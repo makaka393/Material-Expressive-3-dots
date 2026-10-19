@@ -15,19 +15,22 @@ PanelWindow {
     anchors { top: true; bottom: true; left: true; right: true }
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: open || card.opacity > 0
+    visible: open && scrim.backingWindowVisible || card.opacity > 0
     WlrLayershell.namespace: "quickshell-launcher"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    // затемнение с точками (волна идёт от поля поиска), клик мимо — закрыть
-    Scrim {
-        anchors.fill: parent
+    // затемнение с точками (волна идёт от поля поиска) — своим слоем под окном
+    ScrimWindow {
+        id: scrim
+        screen: win.screen
+        hold: win.visible
         shown: win.open
         dim: 0.26
         origin: Qt.point(width / 2, Math.round(height * 0.17) + 36)
-        onClicked: win.open = false
     }
+    // клик мимо — закрыть
+    MouseArea { anchors.fill: parent; onClicked: win.open = false }
 
     Item {
         id: card

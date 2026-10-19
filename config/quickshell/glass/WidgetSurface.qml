@@ -40,18 +40,34 @@ Item {
     readonly property color hue: toneNow === "secondary" ? Theme.secondary : toneNow === "tertiary" ? Theme.tertiary
                                : toneNow === "neutral" ? Theme.fgVariant : Theme.primary
 
-    // текст и значки поверх: без подложки — светлые, как «Коротко о главном» на обоях
-    readonly property color fg: bare ? "white" : Theme.m3 ? containerInk : Theme.fg
-    readonly property color fgDim: Qt.alpha(fg, bare ? 0.82 : 0.72)
-    readonly property color accent: bare ? Qt.hsla(hue.hslHue, Math.max(0.35, hue.hslSaturation), 0.84, 1)
-                                         : Theme.legible(hue, container, 4.5)
-    readonly property color fill: accent
-    readonly property color fillInk: Theme.lum(accent) > 0.3 ? Qt.darker(container, 1.25) : "white"
-    readonly property color chip: Qt.alpha(fg, bare ? 0.16 : 0.1)            // неактивные кнопки и дорожки
+    // На чём на самом деле лежат текст и значки: обои под виджетом (средний цвет считает Desktop.qml —
+    // wallUnder у ячейки виджета), смешанные с подложкой по её плотности. Цвета ниже подбираются под
+    // этот фон: виджет читается и на светлых обоях, и при почти прозрачном стекле. Вне рабочего стола
+    // (превью в каталоге) обоев не знаем — фон считаем тёмным, как у темы
+    readonly property Item host: { let p = s.parent; while (p && p.wallUnder === undefined) p = p.parent; return p; }
+    readonly property color under: host ? host.wallUnder : Theme.surfaceLowest
+    readonly property color seen: bare ? under : Qt.tint(under, Qt.alpha(tint, Math.max(0, Math.min(1, alpha))))
 
-    // цвет подложки: у стекла — матовая поверхность с оттенком контейнера, у M3 — сам контейнер
+    // текст и значки поверх: без подложки — белые (на светлых обоях — тёмные), как «Коротко о главном»
+    readonly property color fg: Theme.legible(bare ? Qt.rgba(1, 1, 1, 1) : Theme.m3 ? containerInk : Theme.fg, seen, 4.5)
+    readonly property color fgDim: Qt.alpha(fg, bare ? 0.82 : 0.72)
+    readonly property color accent: Theme.legible(bare ? Qt.hsla(Math.max(0, hue.hslHue), Math.max(0.35, hue.hslSaturation), 0.84, 1) : hue,
+                                                  seen, bare ? 3 : 4.5)
+    readonly property color fill: accent
+    readonly property color fillInk: Theme.lum(accent) > 0.3 ? Theme.legible(Qt.darker(container, 1.25), accent, 4.5) : "white"
+    readonly property color chip: Qt.alpha(fg, bare ? 0.16 : 0.1)            // неактивные кнопки и дорожки
+    // текст прямо на обоях рядом с подложкой (дата под циферблатом)
+    readonly property color wallInk: Theme.legible(Qt.rgba(1, 1, 1, 1), under, 4.5)
+
+    // цвет подложки: у стекла — матовая поверхность темы с оттенком контейнера, у M3 — сам контейнер.
+    // Светлота стекла — как у всей оболочки (Theme.frost), от контейнера берётся только оттенок:
+    // контейнеры бывают разной яркости (в моно-теме primary светлый, tertiary серый), и виджеты рядом
+    // выходили то светлыми, то тёмными
     readonly property color base: tintOverride.a > 0 ? tintOverride : container
-    readonly property color tint: Theme.m3 ? base : Qt.tint(Theme.frost, Qt.alpha(base, 0.5))
+    readonly property color mixed: Qt.tint(Theme.frost, Qt.alpha(base, 0.5))
+    readonly property color tint: Theme.m3 ? base
+                                : tintOverride.a > 0 ? mixed
+                                : Qt.hsla(Math.max(0, mixed.hslHue), mixed.hslSaturation, Theme.frost.hslLightness, 1)
 
     ShaderEffect {
         id: glass

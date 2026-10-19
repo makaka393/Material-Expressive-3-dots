@@ -12,6 +12,12 @@ Item {
     readonly property int days: new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
     readonly property int today: shift === 0 ? now.getDate() : -1
     readonly property int cell: 38
+    // цвета — по умолчанию темы; виджет календаря подставляет свои, подобранные под его фон
+    property color ink: Theme.fg
+    property color inkDim: Theme.fgVariant
+    property color accent: Theme.primary
+    property color weekend: Theme.tertiary
+    property color todayInk: Theme.primaryFg
 
     readonly property string title: {
         const s = I18n.locale.standaloneMonthName(first.getMonth(), Locale.LongFormat) + " " + first.getFullYear();
@@ -36,13 +42,13 @@ Item {
             Label {
                 anchors { left: parent.left; leftMargin: 6; verticalCenter: parent.verticalCenter }
                 text: root.title; size: 17; weight: 700; elide: Text.ElideNone
-                color: root.shift === 0 ? Theme.fg : Theme.primary
+                color: root.shift === 0 ? root.ink : root.accent
                 TapHandler { onTapped: root.shift = 0 }
             }
             Row {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                IconButton { icon: "chevron_left"; size: 34; iconSize: 22; fill: 0; onClicked: root.shift-- }
-                IconButton { icon: "chevron_right"; size: 34; iconSize: 22; fill: 0; onClicked: root.shift++ }
+                IconButton { icon: "chevron_left"; size: 34; iconSize: 22; fill: 0; color: root.ink; onClicked: root.shift-- }
+                IconButton { icon: "chevron_right"; size: 34; iconSize: 22; fill: 0; color: root.ink; onClicked: root.shift++ }
             }
         }
 
@@ -56,7 +62,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     text: I18n.locale.standaloneDayName((index + 1) % 7, Locale.ShortFormat)
                     size: 12; weight: 600; elide: Text.ElideNone
-                    color: index >= 5 ? Theme.tertiary : Theme.fgVariant
+                    color: index >= 5 ? root.weekend : root.inkDim
                 }
             }
         }
@@ -77,14 +83,14 @@ Item {
                         anchors.centerIn: parent
                         width: 34; height: 34
                         radius: day.isToday ? 12 : 17
-                        color: day.isToday ? Theme.primary : "transparent"
+                        color: day.isToday ? root.accent : "transparent"
                     }
                     Label {
                         anchors.centerIn: parent
                         visible: day.inMonth
                         text: day.n
                         size: 14; weight: day.isToday ? 750 : 550; elide: Text.ElideNone
-                        color: day.isToday ? Theme.primaryFg : day.index % 7 >= 5 ? Theme.tertiary : Theme.fg
+                        color: day.isToday ? root.todayInk : day.index % 7 >= 5 ? root.weekend : root.ink
                     }
                 }
             }

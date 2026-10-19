@@ -7,6 +7,8 @@
 выбранный цвет, а текст поверх него — на чёрный или белый, что читается лучше.
 Второй цвет (secondary/tertiary — например, второй цвет градиента рамок окон) — тот же
 оттенок, но мягче: менее насыщенный и светлее, чтобы подходил к основному.
+Контейнер основного цвета (включённые плитки, значки уведомлений) — тоже от выбранного цвета:
+у matugen он из схемы, у «Яркой» кислотный, и рядом с точным цветом выглядел чужим.
 """
 import colorsys
 import json
@@ -62,10 +64,13 @@ soft = max(0.25, s * 0.55)
 tert = hsl(h + 0.025, max(0.35, s * 0.85), 0.65 if dark else 0.40)     # чуть сдвинутый тон — для градиентов
 sec = hsl(h, soft, 0.76 if dark else 0.36)
 cont_l, cont_fg_l = (0.24, 0.88) if dark else (0.88, 0.18)
+pc_s = max(0.25, min(0.8, s) * 0.85)          # контейнер: насыщенность как у цвета, но без кислоты
 
 new = {
     "primary": want,
     "primaryFg": on(want),
+    "primaryContainer": hsl(h, pc_s, cont_l),
+    "primaryContainerFg": hsl(h, max(0.3, min(0.9, s)), cont_fg_l),
     "tertiary": tert,
     "tertiaryContainer": hsl(h + 0.025, soft, cont_l),
     "tertiaryContainerFg": hsl(h + 0.025, soft, cont_fg_l),

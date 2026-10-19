@@ -212,7 +212,7 @@ Island {
                     name: "check_circle"
                     size: 18
                     fill: 1
-                    color: Theme.primary
+                    color: Theme.primaryText
                     opacity: dev.current ? 1 : 0
                     scale: dev.current ? 1 : 0.4
                     Behavior on opacity { Anim { kind: "effects" } }

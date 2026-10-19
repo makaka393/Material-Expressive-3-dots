@@ -16,6 +16,11 @@ Item {
         anchors.fill: parent
         visible: root.month
         now: root.now
+        ink: ws.fg
+        inkDim: ws.fgDim
+        accent: ws.accent
+        weekend: Theme.legible(Theme.tertiary, ws.seen, 4.5)
+        todayInk: ws.fillInk
     }
 
     // ── сегодня крупно

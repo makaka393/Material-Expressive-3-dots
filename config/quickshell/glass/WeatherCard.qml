@@ -18,7 +18,7 @@ Item {
                 name: Weather.icon(Weather.code, Weather.isDay)
                 size: 56
                 fill: 1
-                color: Theme.tertiary
+                color: Theme.tertiaryText
             }
             Label {
                 anchors.verticalCenter: parent.verticalCenter
@@ -78,7 +78,7 @@ Item {
                         anchors.centerIn: parent
                         spacing: 2
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.hour; size: 11; color: Theme.fgVariant }
-                        Icon { anchors.horizontalCenter: parent.horizontalCenter; name: Weather.icon(modelData.code, modelData.day); size: 22; fill: 1; color: Theme.tertiary }
+                        Icon { anchors.horizontalCenter: parent.horizontalCenter; name: Weather.icon(modelData.code, modelData.day); size: 22; fill: 1; color: Theme.tertiaryText }
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: Math.round(modelData.temp) + "°"; size: 14; weight: 650 }
                     }
                 }

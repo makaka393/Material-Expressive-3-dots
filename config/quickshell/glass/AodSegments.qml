@@ -19,7 +19,7 @@ Column {
     component Digit: Item {
         id: dg
         property string ch: "0"
-        property color lit: Theme.fg
+        property color lit: sg.clock.cFg
         property real k: 1
         property real appear: 1
         property bool bound: false           // анимировать ли смену (после появления)
@@ -50,7 +50,7 @@ Column {
                 x: modelData.x; y: modelData.y
                 width: modelData.w; height: modelData.h
                 radius: Math.min(width, height) / 2
-                color: lit ? dg.lit : Qt.alpha(Theme.fg, 0.07)
+                color: lit ? dg.lit : Qt.alpha(sg.clock.cFg, 0.07)
                 scale: (lit ? 1 : 0.9) * Math.min(1.1, dg.appear)
                 opacity: Math.min(1, dg.appear * 1.5)
                 Behavior on color { ColorAnimation { duration: 320 } }
@@ -62,8 +62,8 @@ Column {
     Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 26 * sg.k
-        Digit { ch: sg.clock.hh[0]; lit: Theme.primary; k: sg.k; appear: sg.clock.at(0.04, 0.5); bound: sg.clock.p >= 1 }
-        Digit { ch: sg.clock.hh[1]; lit: Theme.primary; k: sg.k; appear: sg.clock.at(0.10, 0.5); bound: sg.clock.p >= 1 }
+        Digit { ch: sg.clock.hh[0]; lit: sg.clock.cPrimary; k: sg.k; appear: sg.clock.at(0.04, 0.5); bound: sg.clock.p >= 1 }
+        Digit { ch: sg.clock.hh[1]; lit: sg.clock.cPrimary; k: sg.k; appear: sg.clock.at(0.10, 0.5); bound: sg.clock.p >= 1 }
         // двоеточие
         Item {
             width: 30 * sg.k; height: 216 * sg.k
@@ -73,7 +73,7 @@ Column {
                     required property real modelData
                     width: 30 * sg.k; height: width; radius: width / 2
                     y: parent.height * modelData - height / 2
-                    color: Theme.tertiary
+                    color: sg.clock.cTertiary
                     scale: sg.clock.at(0.16, 0.5)
                     Behavior on color { ColorAnimation { duration: 300 } }
                 }
@@ -87,7 +87,7 @@ Column {
         anchors.horizontalCenter: parent.horizontalCenter
         text: sg.clock.date
         size: Math.max(8, 26 * sg.k); weight: 550
-        color: Theme.fgVariant
+        color: sg.clock.dateColor
         opacity: sg.clock.fade(0.5, 0.3)
         elide: Text.ElideNone
     }

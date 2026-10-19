@@ -33,7 +33,7 @@ Item {
         // те же формулы, что в Theme, но для конкретного стиля (а не текущего)
         readonly property real op: m3 ? Config.m3Opacity : Config.glassOpacity
         readonly property color tint: m3 ? Qt.alpha(Theme.surfaceMid, op) : Qt.alpha(Theme.frost, op)
-        readonly property color tintStrong: m3 ? Qt.alpha(Theme.surfaceHigh, Math.min(1, op + 0.25)) : Qt.alpha(Theme.frost, Math.min(1, op + 0.25))
+        readonly property color tintStrong: m3 ? Qt.alpha(Theme.surfaceHigh, Math.min(1, op + Theme.strongBoost)) : Qt.alpha(Theme.frost, Math.min(1, op + Theme.strongBoost))
         readonly property color border: m3 ? Qt.alpha(Theme.fg, op < 0.97 ? 0.07 : 0) : Qt.alpha(Theme.fg, 0.12)
         readonly property real k: width / 300
 

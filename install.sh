@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# glass-dots — установка. Запуск из папки репозитория: ./install.sh
+# Намира ОС (glass-dots) — установка. Запуск из папки репозитория: ./install.sh
 #   --no-packages   не ставить пакеты
 #   --no-sddm       не трогать экран входа
 set -euo pipefail

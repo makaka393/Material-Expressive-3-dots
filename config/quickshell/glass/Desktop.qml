@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 
 // Рабочий стол: виджеты под окнами (слой Bottom — над обоями, под окнами), на главном экране.
 // Правый клик по пустому месту или по виджету — меню. В режиме правки рабочий стол встаёт над
@@ -88,6 +89,42 @@ Variants {
         }
         ShaderEffectSource { id: blurTex; sourceItem: wallBlur; hideSource: true; live: true; smooth: true; visible: false; width: 1; height: 1 }
         readonly property var glassBackdrop: blurTex
+
+        // ── средний цвет обоев по участкам ~32×32 px (обои кадрируются по центру, как у awww):
+        // по нему виджеты подбирают цвет текста — тёмный на светлых обоях, светлый на тёмных
+        // (WidgetSurface.under). Считается раз на смену обоев
+        property var wallCells: null           // { w, h, px: [r, g, b, …] 0…1 }
+        Process {
+            id: wallProc
+            readonly property int cw: Math.max(1, Math.round(win.width / 32))
+            readonly property int ch: Math.max(1, Math.round(win.height / 32))
+            readonly property string key: Locker.frameFile + "|" + Locker.frameRev + "|" + cw + "x" + ch
+            property bool again: false
+            function refresh() { if (Locker.frameFile === "" || win.width <= 0) return; if (running) again = true; else running = true; }
+            onKeyChanged: Qt.callLater(refresh)
+            onRunningChanged: if (!running && again) { again = false; running = true; }
+            command: ["magick", Locker.frameFile, "-resize", cw + "x" + ch + "^", "-gravity", "center", "-extent", cw + "x" + ch,
+                      "-depth", "8", "-compress", "none", "ppm:-"]
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const n = text.trim().split(/\s+/);
+                    if (n[0] !== "P3" || n.length < 4) return;
+                    const mx = +n[3] || 255;
+                    win.wallCells = { w: +n[1], h: +n[2], px: n.slice(4).map(v => v / mx) };
+                }
+            }
+        }
+        // средний цвет обоев в прямоугольнике окна (до первого расчёта — тёмный, как у темы)
+        function wallAt(x, y, w, h) {
+            const c = wallCells;
+            if (!c || c.w < 1 || c.px.length < c.w * c.h * 3) return Theme.surfaceLowest;
+            const x0 = Math.max(0, Math.floor(x / win.width * c.w)), x1 = Math.min(c.w - 1, Math.ceil((x + w) / win.width * c.w) - 1);
+            const y0 = Math.max(0, Math.floor(y / win.height * c.h)), y1 = Math.min(c.h - 1, Math.ceil((y + h) / win.height * c.h) - 1);
+            let r = 0, g = 0, b = 0, k = 0;
+            for (let j = y0; j <= y1; j++)
+                for (let i = x0; i <= x1; i++) { const o = (j * c.w + i) * 3; r += c.px[o]; g += c.px[o + 1]; b += c.px[o + 2]; k++; }
+            return k > 0 ? Qt.rgba(r / k, g / k, b / k, 1) : Theme.surfaceLowest;
+        }
 
         // ── пустое место
         MouseArea {
@@ -217,6 +254,9 @@ Variants {
                 readonly property bool tuned: Widgets.tuning === wid
                 property bool resizing: false
                 readonly property bool hot: Widgets.editing && (hostHover.hovered || resizing || dragging || tuned)
+                // средний цвет обоев под виджетом (по клеткам, а не по x/y — не пересчитывается на каждом
+                // кадре переноса): по нему WidgetSurface выбирает цвет текста
+                readonly property color wallUnder: win.wallAt(win.px(gx), win.py(gy), win.span(gw), win.span(gh))
 
                 x: win.px(gx)
                 y: win.py(gy)
@@ -462,9 +502,9 @@ Variants {
             Behavior on opacity { Anim { kind: "effects" } }
             Behavior on scale { Anim { kind: "fast" } }
 
-            // на одном слое с виджетами блюр Hyprland их не разделяет — подложка плотнее обычного стекла
-            Rectangle { anchors.fill: parent; radius: 24; color: Qt.alpha(Theme.surfaceLow, 0.82) }
-            GlassSurface { anchors.fill: parent; radius: 24; strong: true }
+            // блюра Hyprland на этом слое нет (иначе ореолы вокруг текста на обоях) — стекло из своих
+            // размытых обоев, как у виджетов, с прозрачностью темы
+            WidgetSurface { anchors.fill: parent; radius: 24; tone: "neutral"; cfg: ({ alpha: Theme.glassStrong.a }) }
             Column {
                 id: menuCol
                 anchors { fill: parent; margins: 8 }
@@ -518,9 +558,9 @@ Variants {
                     width: ebRow.implicitWidth + 40; height: 52
                     scale: ebMouse.pressed ? 0.95 : 1
                     Behavior on scale { Anim { kind: "fast" } }
-                    Rectangle { anchors.fill: parent; radius: ebMouse.pressed ? 16 : 26; color: Qt.alpha(Theme.surfaceLow, 0.82); visible: !eb.modelData.primary
-                                Behavior on radius { Anim { kind: "fast" } } }
-                    GlassSurface { anchors.fill: parent; radius: 26; strong: true; visible: !eb.modelData.primary }
+                    WidgetSurface { anchors.fill: parent; radius: ebMouse.pressed ? 16 : 26; visible: !eb.modelData.primary
+                                    tone: "neutral"; cfg: ({ alpha: Theme.glassStrong.a })
+                                    Behavior on radius { Anim { kind: "fast" } } }
                     Rectangle { anchors.fill: parent; radius: ebMouse.pressed ? 16 : 26; color: Theme.primary; visible: eb.modelData.primary
                                 Behavior on radius { Anim { kind: "fast" } } }
                     Row {
@@ -557,8 +597,7 @@ Variants {
             Behavior on opacity { Anim { kind: "effects" } }
 
             MouseArea { anchors.fill: parent }   // клики мимо карточек не уходят на рабочий стол
-            Rectangle { anchors.fill: parent; radius: 36; color: Qt.alpha(Theme.surfaceLow, 0.86) }
-            GlassSurface { anchors.fill: parent; radius: 36; strong: true; sheenEnd: 0.2 }
+            WidgetSurface { anchors.fill: parent; radius: 36; tone: "neutral"; cfg: ({ alpha: Theme.glassStrong.a }) }
 
             // ── вкладки
             Flickable {

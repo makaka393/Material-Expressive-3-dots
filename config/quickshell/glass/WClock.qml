@@ -41,6 +41,11 @@ Item {
         style: root.face
         k: 0.5
         showDate: root.dated
+        // цвета стрелок и цифр — под фон виджета (стекло и обои под ним); дата лежит на плашке,
+        // а у «Стрелок», «Форм» и без фона — прямо на обоях
+        ink: ({ fg: ws.fg, dim: ws.fgDim, primary: Theme.legible(Theme.primary, ws.seen, 3),
+                tertiary: Theme.legible(Theme.tertiary, ws.seen, 3), base: ws.seen })
+        dateColor: root.bare || root.inner ? Qt.alpha(ws.wallInk, 0.85) : ws.fgDim
         now: root.now
         surface: root.bare || !root.inner ? null : { cfg: root.cfg, tone: "neutral" }
         property real pp: 0

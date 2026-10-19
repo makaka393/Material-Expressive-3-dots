@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# glass-dots — экран блокировки оболочки вместо SDDM.
+# Намира ОС (glass-dots) — экран блокировки оболочки вместо SDDM.
 #   ./lockscreen-instead-of-sddm.sh          включить (сработает после перезагрузки)
 #   ./lockscreen-instead-of-sddm.sh --undo   вернуть SDDM
 #
