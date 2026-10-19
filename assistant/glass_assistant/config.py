@@ -49,14 +49,13 @@ DEFAULTS = {
 # «Вега» — 37 из 40 и 69 из 90 с сильным шумом («Ирис» — 64: «И рис», «Ирина»)
 NAME = "Вега"
 NAME_HEARD = ["вега", "vega"]
-# Голоса: Silero v5_ru (5 своих, лучшие ударения) и Piper — по файлу models/tts/piper/<model>.onnx (rhasspy/piper-voices).
+# Голоса: Silero v5_ru — русские (5 своих, лучшие ударения), Piper — английские, по файлу models/tts/piper/<model>.onnx (rhasspy/piper-voices).
 # Английские отвечают по-английски; русские фразы (подтверждения инструментов) у них звучат голосом Silero того же пола
 VoiceInfo = namedtuple("VoiceInfo", "engine lang female model")
 VOICES = {
     "xenia": VoiceInfo("silero", "ru", True, None), "kseniya": VoiceInfo("silero", "ru", True, None),
     "baya": VoiceInfo("silero", "ru", True, None), "aidar": VoiceInfo("silero", "ru", False, None),
     "eugene": VoiceInfo("silero", "ru", False, None),
-    "irina": VoiceInfo("piper", "ru", True, "ru_RU-irina-medium"), "ruslan": VoiceInfo("piper", "ru", False, "ru_RU-ruslan-medium"),
     "lessac": VoiceInfo("piper", "en", True, "en_US-lessac-medium"), "ryan": VoiceInfo("piper", "en", False, "en_US-ryan-medium"),
     "alba": VoiceInfo("piper", "en", True, "en_GB-alba-medium"),
     "northern": VoiceInfo("piper", "en", False, "en_GB-northern_english_male-medium"),
