@@ -44,12 +44,17 @@ echo "== Служба"
 rsync -a --delete --exclude __pycache__ "$HERE/glass_assistant/" "$A/app/glass_assistant/"
 mkdir -p "$HOME/.config/systemd/user" "$HOME/.config/glass"
 cp "$HERE/glass-assistant.service" "$HOME/.config/systemd/user/"
+# микрофон для Веги: WebRTC — шумодав, автоусиление, эхоподавление (источник glass_vega_mic). Микрофон в
+# glass-vega-mic.conf — fifine: свой — поменяй target.object (pactl list sources short)
+mkdir -p "$HOME/.config/pipewire"
+cp "$HERE/glass-vega-mic.conf" "$HOME/.config/pipewire/"
+cp "$HERE/glass-vega-mic.service" "$HOME/.config/systemd/user/"
 E="$HOME/.config/glass/assistant.env"
 if [ ! -e "$E" ]; then
     printf '# Ключ Claude API для ассистента glass (console.anthropic.com → API Keys).\n# ANTHROPIC_API_KEY=\n' > "$E"
     chmod 600 "$E"
 fi
 systemctl --user daemon-reload
-systemctl --user enable --now glass-assistant
+systemctl --user enable --now glass-vega-mic glass-assistant
 systemctl --user restart glass-assistant
 echo "Готово. Ключ Claude — в $E, потом: systemctl --user restart glass-assistant"

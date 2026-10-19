@@ -177,6 +177,7 @@ Singleton {
             property bool advanced: false               // в настройках раскрыты «Расширенные» (служба не читает)
             property var claudeWords: ["морковь"]
             property string mic: ""
+            property bool farMic: true                  // слушать через glass_vega_mic: шумодав, усиление, эхоподавление
         }
     }
 

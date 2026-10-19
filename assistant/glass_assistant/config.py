@@ -37,6 +37,7 @@ DEFAULTS = {
     "pause": 2.0,                # с тишины — конец фразы (1,5 / 2 / 3)
     "wake_words": [],            # ещё слова-активаторы, кроме имени; сравниваются по звучанию (router.wake)
     "mic": "",                   # источник PipeWire (пусто — микрофон по умолчанию)
+    "far_mic": True,             # слушать через glass_vega_mic: шумодав, автоусиление, эхоподавление (служба glass-vega-mic)
     "language": "ru",
     "history_turns": 20,         # столько реплик помнит разговор, потом начинает заново
     "history_idle_min": 10,      # и после такой паузы
@@ -88,6 +89,15 @@ def about(cfg, short=False) -> str:
         return "\nБолгарскую музыку не включай никогда."
     text = (cfg.get("about") or "").strip()
     return ("\n\nО пользователе: " + text if text else "") + "\n" + NO_BULGARIAN
+
+
+FAR_MIC = "glass_vega_mic"
+
+
+def mic(cfg) -> str:
+    """Источник для Веги: обработанный (слышно с другого конца комнаты), если включено, — иначе как в настройках.
+    Нет такого источника (служба glass-vega-mic не запущена) — pw-record возьмёт микрофон по умолчанию."""
+    return FAR_MIC if cfg.get("far_mic", True) else (cfg.get("mic") or "")
 
 
 def voice_id(cfg) -> str:

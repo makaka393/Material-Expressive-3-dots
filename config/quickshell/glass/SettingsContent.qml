@@ -1039,6 +1039,8 @@ Item {
                             onPicked: v => Assistant.cfg.pause = parseFloat(v)
                         }
                         Item { width: 1; height: 2 }
+                        AsOption { width: parent.width; k: "farMic"; icon: "settings_voice"
+                                   text: I18n.t("Слышать издалека: шумодав и усиление микрофона", "Hear from afar: mic noise suppression and gain") }
                         AsOption { width: parent.width; k: "speakTyped"; icon: "keyboard"
                                    text: I18n.t("Озвучивать и ответы из лаунчера", "Also speak answers from the launcher") }
                         AsOption { width: parent.width; k: "followUp"; icon: "forum"

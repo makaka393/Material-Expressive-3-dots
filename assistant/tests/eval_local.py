@@ -103,6 +103,8 @@ CASES = [
     ("какая погода", [("system_info", lambda c: arg(c, "kind") == "weather")]),
     ("сколько времени", ([("system_info", lambda c: arg(c, "kind") == "time")], "chat")),
     ("насколько загружен процессор", [("system_info", lambda c: arg(c, "kind") == "cpu")]),
+    ("есть ли у меня стим", [("system_info", lambda c: arg(c, "kind") == "apps" and "ст" in low(arg(c, "query")) or "steam" in low(arg(c, "query")))]),
+    ("какие программы у меня установлены", [("system_info", lambda c: arg(c, "kind") == "apps")]),
     ("как там видеокарта, не греется", [("system_info", lambda c: arg(c, "kind") == "gpu")]),
     ("что сейчас играет", [("system_info", lambda c: arg(c, "kind") == "now_playing")]),
     ("сколько заряда в наушниках", [("system_info", lambda c: arg(c, "kind") == "headphones")]),

@@ -121,8 +121,8 @@ class Daemon:
             asyncio.create_task(self.local.warm(cfg))             # и локальная модель
         level = lambda v: self.emit("level", v=round(v, 3))
         pause = float(cfg.get("pause") or 2.0)
-        audio = await (record_utterance(cfg["mic"], level, max_wait=FOLLOW_WAIT, tail=pause) if depth
-                       else record_utterance(cfg["mic"], level, tail=pause))
+        audio = await (record_utterance(config.mic(cfg), level, max_wait=FOLLOW_WAIT, tail=pause) if depth
+                       else record_utterance(config.mic(cfg), level, tail=pause))
         if audio is None:
             warm.cancel()
             return
@@ -243,7 +243,7 @@ class Daemon:
                 await asyncio.sleep(0.3)
                 continue
             try:
-                async with Mic(cfg["mic"]) as mic:
+                async with Mic(config.mic(cfg)) as mic:
                     await self.wake_listen(cfg, mic.frames())
             except asyncio.CancelledError:
                 raise

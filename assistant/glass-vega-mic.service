@@ -1,0 +1,13 @@
+# Микрофон для ассистента glass: WebRTC-обработка fifine (~/.config/pipewire/glass-vega-mic.conf)
+[Unit]
+Description=glass: Vega microphone (WebRTC noise suppression, gain, echo cancel)
+After=pipewire.service wireplumber.service
+BindsTo=pipewire.service
+
+[Service]
+ExecStart=/usr/bin/pipewire -c %h/.config/pipewire/glass-vega-mic.conf
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=pipewire.service

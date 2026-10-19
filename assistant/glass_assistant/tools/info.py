@@ -151,13 +151,36 @@ async def system_info(args):
         except RuntimeError:
             song = ""
         text = f"Играет {song}." if song else "Сейчас ничего не играет."
+    elif kind == "apps":
+        return installed(args.get("query") or "")
     else:
         return Result(False, f"Не знаю, как узнать «{kind}»")
     return Result(True, text, text)
 
 
+def installed(query: str) -> Result:
+    """Что установлено: приложения с ярлыками (как в лаунчере) и программы в PATH. Только названия — к файлам
+    и папкам доступа нет."""
+    from . import apps
+    if query:
+        e = apps.find(query)
+        if e:
+            return Result(True, f"{e.name} установлен", f"Да, {e.name} установлен.")
+        exe = query.strip().lower().translate(apps.LAT).replace(" ", "-")
+        if shutil.which(exe):
+            return Result(True, f"{query}: есть программа {exe}", f"Да, {exe} есть — без ярлыка, из терминала.")
+        return Result(True, f"{query} не установлен", f"{query} не установлен.")
+    names = sorted({e.name for e in apps.entries()}, key=str.lower)
+    text = f"Установлено {len(names)} приложений: " + ", ".join(names) + "."
+    head = ", ".join(names[:12])
+    return Result(True, text, f"Установлено {len(names)} приложений, например: {head}" + (" и другие." if len(names) > 12 else "."),
+                  data=text)
+
+
 register(Tool("system_info", "Справка — ответить голосом: время, дата, погода (в городе пользователя — не переспрашивай), "
               "загрузка процессора, видеокарты, память, "
-              "место на диске, заряд наушников, что сейчас играет",
+              "место на диске, заряд наушников, что сейчас играет, apps — что установлено на компьютере "
+              "(query — есть ли конкретная программа)",
               {"kind": {"type": "string", "enum": ["time", "date", "weather", "cpu", "gpu", "memory", "disk",
-                                                   "headphones", "now_playing"]}}, ["kind"], system_info))
+                                                   "headphones", "now_playing", "apps"]},
+               "query": {"type": "string"}}, ["kind"], system_info))

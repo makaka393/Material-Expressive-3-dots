@@ -130,3 +130,26 @@ class SessionEnvTest(unittest.TestCase):
             self.assertEqual((env["HYPRLAND_INSTANCE_SIGNATURE"], env["WAYLAND_DISPLAY"]), ("abc_123", "wayland-1"))
         with patch.dict(os.environ, {**clean, "XDG_RUNTIME_DIR": str(run), "HYPRLAND_INSTANCE_SIGNATURE": "old_1"}, clear=True):
             self.assertEqual(base.session_env()["HYPRLAND_INSTANCE_SIGNATURE"], "abc_123")
+
+
+class InstalledTest(unittest.TestCase):
+    def test_list_and_query(self):
+        from unittest.mock import patch
+        from glass_assistant.tools import apps, info
+        fake = [apps.Entry("steam", "Steam", "steam", "steam", "steam"), apps.Entry("org.telegram.desktop", "Telegram", "", "telegram-desktop", "telegram")]
+        with patch.object(apps, "entries", return_value=fake), patch("shutil.which", return_value=None):
+            r = info.installed("")
+            self.assertIn("Steam", r.data)
+            self.assertIn("2 приложений", r.say)
+            self.assertIn("Telegram установлен", info.installed("телегу").show)
+            self.assertIn("не установлен", info.installed("фотошоп").show)
+
+    def test_intent(self):
+        from glass_assistant import intents
+        self.assertEqual(intents.match("что у меня установлено"), ("system_info", {"kind": "apps"}))
+
+    def test_far_mic(self):
+        from glass_assistant import config
+        self.assertEqual(config.mic(config.DEFAULTS), "glass_vega_mic")
+        self.assertEqual(config.mic({**config.DEFAULTS, "far_mic": False, "mic": "x"}), "x")
+
