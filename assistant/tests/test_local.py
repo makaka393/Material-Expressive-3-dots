@@ -248,6 +248,17 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.llama.bodies[0]["messages"][0], self.llama.bodies[1]["messages"][0])
         self.assertEqual(self.llama.bodies[0]["tools"], self.llama.bodies[1]["tools"])
 
+    async def test_search_answer_read_by_model(self):
+        # «найди в интернете курс доллара»: вызов web → выдача → второй проход — ответ словами
+        from glass_assistant.tools.base import Result
+        self.llama.replies = [[call(0, "web", '{"query": "курс доллара"}')], [text("Доллар сейчас стоит 81,5 рубля.")]]
+        with patch("glass_assistant.tools.run", AsyncMock(return_value=Result(True, "Нашёл про «курс доллара»",
+                                                                             data="1. ЦБ — 81,5 рубля"))):
+            r = await self.ask("найди в интернете курс доллара")
+        self.assertEqual(r.text, "Доллар сейчас стоит 81,5 рубля.")
+        second = self.llama.bodies[1]
+        self.assertEqual(second["tool_choice"], "none")
+        self.assertEqual(second["messages"][-1], {"role": "tool", "tool_call_id": "call_0", "content": "1. ЦБ — 81,5 рубля"})
 
 class GateTest(unittest.TestCase):
     def run_gate(self, chunks):

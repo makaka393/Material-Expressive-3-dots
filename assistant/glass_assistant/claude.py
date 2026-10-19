@@ -124,7 +124,7 @@ class ClaudeBrain:
                 action = {"name": b.name, "args": b.input, "ok": res.ok, "show": res.show, "say": res.say}
                 actions.append(action)
                 await on_action(action)
-                result = {"type": "tool_result", "tool_use_id": b.id, "content": res.show or ("ок" if res.ok else "ошибка")}
+                result = {"type": "tool_result", "tool_use_id": b.id, "content": res.data or res.show or ("ок" if res.ok else "ошибка")}
                 if not res.ok:
                     result["is_error"] = True
                 results.append(result)

@@ -59,10 +59,21 @@ class PublicTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_web(self):
         await tools.run("web", {"url": "github.com"})
-        await tools.run("web", {"query": "курс доллара"})
-        self.assertEqual(self.calls, [("launch", "xdg-open", "https://github.com"),
-                                      ("launch", "xdg-open", "https://www.google.com/search?q=%D0%BA%D1%83%D1%80%D1%81+"
-                                                             "%D0%B4%D0%BE%D0%BB%D0%BB%D0%B0%D1%80%D0%B0")])
+        # нашлось — отвечаем по выдаче, браузер не открываем
+        found = AsyncMock(return_value=[("Курс доллара ЦБ", "Курс доллара на 19.10 — 81,5 рубля")])
+        with patch("glass_assistant.tools.apps.search_results", found):
+            r = await tools.run("web", {"query": "курс доллара"})
+        self.assertIn("81,5 рубля", r.data)
+        self.assertEqual(self.calls, [("launch", "xdg-open", "https://github.com")])
+        # нет сети — как раньше, поиск в браузере
+        with patch("glass_assistant.tools.apps.search_results", AsyncMock(side_effect=OSError("сеть"))):
+            r = await tools.run("web", {"query": "курс доллара"})
+        self.assertIsNone(r.data)
+        self.assertEqual(self.calls[-1], ("launch", "xdg-open", "https://www.google.com/search?q=%D0%BA%D1%83%D1%80%D1%81+"
+                                                               "%D0%B4%D0%BE%D0%BB%D0%BB%D0%B0%D1%80%D0%B0"))
+        # на ютубе — открыть
+        await tools.run("web", {"query": "lofi", "site": "youtube"})
+        self.assertEqual(self.calls[-1], ("launch", "xdg-open", "https://www.youtube.com/results?search_query=lofi"))
 
     async def test_window_move_and_close(self):
         await tools.run("window", {"action": "move", "workspace": 5})

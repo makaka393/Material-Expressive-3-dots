@@ -33,6 +33,8 @@ async def web(args):
     if args.get("url"):
         return await apps.open_url({"url": args["url"]})
     if args.get("query"):
+        if args.get("site") in (None, "", "google"):           # найти и ответить; на ютубе, картах — открыть
+            return await apps.web_answer({"query": args["query"]})
         return await apps.web_search({"query": args["query"], "site": args.get("site")})
     return Result(False, "Не сказано, что открыть", "Не сказано, что открыть.")
 
@@ -79,7 +81,8 @@ register(Tool("toggle", "Включить или выключить: ночно�
 register(Tool("app", "Открыть или закрыть приложение (браузер, телега, дискорд, стим, спотифай, терминал, проводник, "
               "настройки…) или известный сайт (гитхаб, ютуб). Уже открытое — покажет",
               {"action": _enum("open", "close"), "name": STR}, ["action", "name"], app))
-register(Tool("web", "Открыть сайт по адресу (url) или найти в интернете (query) — только когда просят найти, загуглить",
+register(Tool("web", "Открыть сайт по адресу (url) или найти в интернете (query) и ответить — когда просят найти, "
+              "загуглить или нужно свежее (курсы, новости, цены). site — открыть поиск на ютубе, картах, гитхабе",
               {"url": STR, "query": STR, "site": _enum("google", "youtube", "wikipedia", "maps", "github")}, [], web))
 register(Tool("window", "Окно: закрыть, во весь экран, плавающее, закрепить, перенести на рабочий стол (move + workspace). "
               "Без app — активное окно, не переспрашивай",

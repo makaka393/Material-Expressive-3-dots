@@ -223,7 +223,7 @@ class LocalBrain:
                 shown = [CANT_TEXT]
                 await on_delta(CANT_TEXT)
 
-        actions, results = [], []
+        actions, results, read = [], [], False
         for i, c in enumerate(calls):
             c["id"] = c["id"] or f"call_{i}"
             res = await tools.run(c["name"], c["arguments"])
@@ -233,8 +233,14 @@ class LocalBrain:
                 args = {}
             action = {"name": c["name"], "args": args, "ok": res.ok, "show": res.show, "say": res.say}
             actions.append(action)
-            results.append(res.show or ("ок" if res.ok else "ошибка"))
+            results.append(res.data or res.show or ("ок" if res.ok else "ошибка"))
             await on_action(action)
+            read = read or bool(res.data)
+
+        if read:                                 # нашла в интернете — второй проход: ответ по выдаче
+            said = await self._read_results(msgs, calls, results, shown, on_delta)
+            shown.append(said)
+            results = [r[:1500] for r in results]      # в историю — покороче: кэш и следующие вопросы
 
         reply_text = "".join(shown)
         turn = [user, {"role": "assistant", "content": "".join(shown) or None,
@@ -245,6 +251,20 @@ class LocalBrain:
         self.history = (self.history + [turn])[-cfg["local_history_turns"]:]
         self.last = time.monotonic()
         return Reply(reply_text, actions)
+
+    async def _read_results(self, msgs, calls, results, shown, on_delta) -> str:
+        """Ответ по результатам инструментов (поиск): вызовы и их выдача — в разговор, модель пишет текст."""
+        follow = msgs + [{"role": "assistant", "content": "".join(shown) or None,
+                          "tool_calls": [{"id": c["id"], "type": "function",
+                                          "function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]}]
+        follow += [{"role": "tool", "tool_call_id": c["id"], "content": r} for c, r in zip(calls, results)]
+        parts = []
+
+        async def out(chunk):
+            parts.append(chunk)
+            await on_delta(chunk)
+        await self._complete(follow, out, tool_choice="none")
+        return "".join(parts)
 
     async def _fast(self, text, name, args, cfg, on_action) -> Reply:
         res = await tools.run(name, args)

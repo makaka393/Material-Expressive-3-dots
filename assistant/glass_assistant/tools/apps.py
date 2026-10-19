@@ -1,11 +1,15 @@
 """Приложения и сайты: открыть (или показать уже открытое), закрыть, сайт, поиск."""
 import configparser
 import difflib
+import html
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, quote_plus
+
+import httpx2
 
 from . import base, register
 from .base import Result, Tool
@@ -161,6 +165,53 @@ async def web_search(args):
     q = quote(args["query"]) if site == "maps" else quote_plus(args["query"])
     await base.launch("xdg-open", base_url + q)
     return Result(True, f"Ищу «{args['query']}»" + ("" if site == "google" else f" на {site}"))
+
+
+# найти и ответить: выдача DuckDuckGo (без ключей, ~0,7 с) — модели, она отвечает по ней. Раньше поиск только
+# открывался в браузере, а вслух было одно «Ищу …»
+DDG = "https://html.duckduckgo.com/html/"
+UA = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+
+
+def _clean(fragment: str) -> str:
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", "", fragment)).split())
+
+
+async def search_results(query: str, n: int = 6) -> list:
+    """[(заголовок, текст)] первых результатов: DuckDuckGo, а если он не ответил (капча на частые запросы —
+    код 202) — Википедия; [] — не нашлось нигде."""
+    async with httpx2.AsyncClient(timeout=4, headers={"User-Agent": UA}, follow_redirects=True) as http:
+        try:
+            r = await http.post(DDG, data={"q": query, "kl": "ru-ru"})
+            titles = re.findall(r'class="result__a"[^>]*>(.*?)</a>', r.text, re.S)
+            snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', r.text, re.S)
+            found = [(_clean(t), _clean(sn)) for t, sn in zip(titles, snippets) if _clean(sn)][:n]
+            if found:
+                return found
+        except httpx2.HTTPError as e:
+            print("поиск DuckDuckGo:", repr(e), flush=True)
+        r = await http.get("https://ru.wikipedia.org/w/api.php",
+                           params={"action": "query", "generator": "search", "gsrsearch": query, "gsrlimit": 3,
+                                   "prop": "extracts", "exintro": 1, "explaintext": 1, "exchars": 1200, "format": "json"},
+                           headers={"User-Agent": "glass-assistant/1.0 (personal desktop assistant)"})
+        pages = sorted(r.json().get("query", {}).get("pages", {}).values(), key=lambda p: p.get("index", 0))
+        return [(f"Википедия: {p['title']}", " ".join(p.get("extract", "").split())[:1200]) for p in pages if p.get("extract")]
+
+
+async def web_answer(args):
+    q = args["query"]
+    try:
+        found = await search_results(q)
+    except Exception as e:                       # нет сети, капча — тогда как раньше, в браузере
+        print("поиск:", repr(e), flush=True)
+        found = []
+    if not found:
+        return await web_search(args)
+    lines = "\n".join(f"{i}. {t} — {sn}" for i, (t, sn) in enumerate(found, 1))
+    return Result(True, f"Нашёл про «{q}»",
+                  data=f"Результаты поиска «{q}» (сегодня {datetime.now():%d.%m.%Y}):\n{lines}\n"
+                       "Ответь на вопрос коротко, одним-двумя предложениями, без ссылок и без «по данным сайта», "
+                       "«в результатах поиска». В результатах ответа нет — ответь сам, что знаешь, и скажи, что примерно.")
 
 
 STR = {"type": "string"}
