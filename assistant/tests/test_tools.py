@@ -107,3 +107,26 @@ class SchemaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionEnvTest(unittest.TestCase):
+    """Служба стартует раньше, чем Hyprland передаёт systemd свои переменные, — сокет ищем сами."""
+
+    def test_finds_hyprland_and_wayland_sockets(self):
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from glass_assistant.tools import base
+        run = Path(tempfile.mkdtemp())
+        (run / "hypr" / "abc_123").mkdir(parents=True)
+        (run / "hypr" / "abc_123" / ".socket.sock").touch()
+        (run / "hypr" / "old_1").mkdir()                       # мёртвый — без сокета
+        (run / "wayland-1").touch()
+        (run / "wayland-1.lock").touch()
+        clean = {k: v for k, v in os.environ.items() if k not in ("HYPRLAND_INSTANCE_SIGNATURE", "WAYLAND_DISPLAY")}
+        with patch.dict(os.environ, {**clean, "XDG_RUNTIME_DIR": str(run)}, clear=True):
+            env = base.session_env()
+            self.assertEqual((env["HYPRLAND_INSTANCE_SIGNATURE"], env["WAYLAND_DISPLAY"]), ("abc_123", "wayland-1"))
+        with patch.dict(os.environ, {**clean, "XDG_RUNTIME_DIR": str(run), "HYPRLAND_INSTANCE_SIGNATURE": "old_1"}, clear=True):
+            self.assertEqual(base.session_env()["HYPRLAND_INSTANCE_SIGNATURE"], "abc_123")

@@ -1,7 +1,9 @@
 """Основа инструментов: описание, результат и запуск команд."""
 import asyncio
 import json
+import os
 import shlex
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
@@ -23,9 +25,31 @@ class Tool:
     visible: bool = True        # показывать ли модели (скрытые вызываются через укрупнённые — public.py)
 
 
+def session_env() -> dict:
+    """Окружение для команд с переменными сессии Hyprland. Служба стартует при входе вместе с Hyprland — раньше,
+    чем он передаёт их systemd («HYPRLAND_INSTANCE_SIGNATURE not set!»), а после перезапуска Hyprland они
+    устаревают. Поэтому сокеты ищем сами: самый свежий $XDG_RUNTIME_DIR/hypr/*/.socket.sock и wayland-N."""
+    env = dict(os.environ)
+    run = Path(env.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    sig = env.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not sig or not (run / "hypr" / sig / ".socket.sock").exists():
+        live = sorted((d for d in (run / "hypr").glob("*") if (d / ".socket.sock").exists()),
+                      key=lambda d: d.stat().st_mtime, reverse=True)
+        if live:
+            env["HYPRLAND_INSTANCE_SIGNATURE"] = live[0].name
+    if not env.get("WAYLAND_DISPLAY") or not (run / env["WAYLAND_DISPLAY"]).exists():
+        socks = sorted((w for w in run.glob("wayland-*") if not w.name.endswith(".lock")),
+                       key=lambda w: w.stat().st_mtime, reverse=True)
+        if socks:
+            env["WAYLAND_DISPLAY"] = socks[0].name
+    env.setdefault("XDG_RUNTIME_DIR", str(run))
+    return env
+
+
 async def sh(*argv: str, timeout: float = 5) -> str:
     """Команда без shell; stdout. Ненулевой код или таймаут — RuntimeError."""
-    proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    proc = await asyncio.create_subprocess_exec(*argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                                                env=session_env())
     try:
         out, err = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError:
