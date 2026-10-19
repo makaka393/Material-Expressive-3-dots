@@ -31,11 +31,4 @@ PanelWindow {
         anchors.fill: parent
         barWindow: bar
     }
-
-    // сияние Веги — своим окном поверх бара, вокруг острова (см. AssistantGlow)
-    AssistantGlow {
-        screen: bar.screen
-        island: content.centerGroup
-        active: content.centerGroup.assist && Assistant.busy
-    }
 }

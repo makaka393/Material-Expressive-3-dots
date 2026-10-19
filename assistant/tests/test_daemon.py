@@ -195,6 +195,20 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn(("playerctl", "-p", "spotify", "play"), calls)
         self.assertEqual(self.d.paused, [])
 
+    async def test_volume_command_resumes_music_now(self):
+        # «сделай громче» посреди разговора — музыка сразу снова играет
+        calls = []
+
+        async def sh(*argv, **kw):
+            calls.append(argv)
+            return ""
+        self.d.paused = ["spotify"]
+        self.d.local_brain = FakeBrain("", actions=[{"name": "volume", "args": {"change": 10}, "ok": True, "show": "Громкость 45%", "say": None}])
+        with patch("glass_assistant.tools.base.sh", sh):
+            await self.d.ask("сделай громче")
+            await asyncio.sleep(0.05)
+        self.assertIn(("playerctl", "-p", "spotify", "play"), calls)
+
     async def test_no_resume_after_music_command(self):
         calls = []
 

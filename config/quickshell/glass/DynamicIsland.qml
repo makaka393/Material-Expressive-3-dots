@@ -225,34 +225,19 @@ Island {
         Behavior on scale { Anim { kind: "spatial" } }
         readonly property string st: Assistant.state
 
-        // «шар»: слушает — дышит в такт голосу, думает — крутится печенькой, говорит — пульсирует клевером
-        Item {
+        // «шар» в духе Gemini, в стекле острова: слушает — круг со светом снизу от голоса, говорит — пилюля
+        // с волнами синего, фиолетового и розового, думает — свет кружит (GeminiOrb)
+        GeminiOrb {
             id: orb
             anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-            width: 44; height: 44
-            AodShape {
-                anchors.fill: parent
-                kind: assistBox.st === "thinking" || assistBox.st === "transcribing" ? "cookie" : assistBox.st === "speaking" ? "clover" : "circle"
-                lobes: 9
-                color: Assistant.error !== "" && !Assistant.busy ? Theme.error : Theme.primary
-                scale: assistBox.st === "listening" ? 0.78 + Math.min(1, Assistant.level * 2.2) * 0.32 : 1
-                Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
-                RotationAnimation on rotation {
-                    from: 0; to: 360; duration: 2400; loops: Animation.Infinite
-                    running: root.assist && (assistBox.st === "thinking" || assistBox.st === "transcribing")
-                }
-                SequentialAnimation on opacity {
-                    running: root.assist && assistBox.st === "speaking"
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.7; duration: 520; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 1; duration: 520; easing.type: Easing.InOutSine }
-                }
-            }
+            st: assistBox.st
+            level: Assistant.level
+            error: Assistant.error !== "" && !Assistant.busy
+            shown: root.assist
             Icon {
                 anchors.centerIn: parent
-                name: Assistant.error !== "" && !Assistant.busy ? "error" : assistBox.st === "listening" ? "mic"
-                    : assistBox.st === "speaking" ? "graphic_eq" : assistBox.st === "idle" ? "check" : "auto_awesome"
-                size: 22; fill: 1; color: Theme.primaryFg
+                visible: orb.error
+                name: "error"; size: 22; fill: 1; color: Theme.error
             }
         }
         Column {

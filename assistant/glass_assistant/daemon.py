@@ -190,6 +190,8 @@ class Daemon:
             actions.append(a)
             if a["name"] in ("media", "play_music"):
                 self.media_touched = True
+            elif a["name"] == "volume" and a["ok"] and self.paused:
+                asyncio.create_task(self._resume_media(now=True))   # «сделай громче» — и сразу слышно музыку
             await self.emit("action", name=a["name"], args=a["args"], ok=a["ok"], show=a["show"])
 
         v = voice or speak
@@ -417,11 +419,13 @@ class Daemon:
             except Exception as e:
                 print("пауза:", p, repr(e), flush=True)
 
-    async def _resume_media(self):
-        """Разговор кончился — вернуть музыку. Не сразу: перебили по имени — начнётся новый, тогда ждём его."""
-        await asyncio.sleep(0.8)
-        if self.busy() or self.state != "idle" or not self.voice.idle.is_set():
-            return
+    async def _resume_media(self, now=False):
+        """Разговор кончился — вернуть музыку. Не сразу: перебили по имени — начнётся новый, тогда ждём его.
+        now — сразу, посреди разговора: «сделай громче» — громкость слышно только на музыке."""
+        if not now:
+            await asyncio.sleep(0.8)
+            if self.busy() or self.state != "idle" or not self.voice.idle.is_set():
+                return
         players, self.paused = self.paused, []
         if self.media_touched:                   # «пауза», «следующий трек», «включи …» — музыкой управлял сам
             self.media_touched = False
