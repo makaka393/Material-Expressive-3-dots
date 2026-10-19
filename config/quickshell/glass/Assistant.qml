@@ -171,6 +171,7 @@ Singleton {
             property bool wake: false
             property bool callVolumeOn: true            // позвали — громкость системы на callVolume %
             property real callVolume: 35
+            property bool pauseMedia: true              // позвали — пауза музыке и видео, после разговора — снова
             property bool followUp: true                // после голосового ответа слушать продолжение
             property real pause: 2.0                    // с тишины — конец фразы
             property var wakeWords: []                  // ещё слова-активаторы, кроме имени

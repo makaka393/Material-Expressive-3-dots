@@ -988,6 +988,8 @@ Item {
                 }
 
                 Item { width: 1; height: 2 }
+                AsOption { width: parent.width; k: "pauseMedia"; icon: "pause_circle"
+                           text: I18n.t("Пауза музыке и видео, пока говорим", "Pause music and video while we talk") }
                 AsOption { width: parent.width; k: "wake"; icon: "hearing"
                            text: I18n.t("Звать по имени — «Вега»", "Wake by name — “Vega”") }
                 AsOption { width: parent.width; k: "speakVoice"; icon: "record_voice_over"

@@ -77,6 +77,8 @@ class Daemon:
         self.state = "idle"
         self.job = None
         self.wake_task = None
+        self.paused = []                 # плееры, которые Вега поставила на паузу при вызове — после разговора снова
+        self.media_touched = False       # в разговоре просили что-то с музыкой — сами не возобновляем
 
     # ── события
     async def emit(self, ev, **kw):
@@ -109,6 +111,8 @@ class Daemon:
         finally:
             if asyncio.current_task() is self.job:
                 await self.set_state("idle")
+                if self.paused:
+                    asyncio.create_task(self._resume_media())
 
     def busy(self):
         return self.job is not None and not self.job.done()
@@ -184,6 +188,8 @@ class Daemon:
 
         async def action(a):
             actions.append(a)
+            if a["name"] in ("media", "play_music"):
+                self.media_touched = True
             await self.emit("action", name=a["name"], args=a["args"], ok=a["ok"], show=a["show"])
 
         v = voice or speak
@@ -388,6 +394,44 @@ class Daemon:
                 await self.emit("level", v=round(min(1.0, rms / 6000.0), 3))
         return more if spoke else []
 
+    def on_call(self, cfg):
+        """Позвали (имя, Super+A, перебили): громкость на удобную и пауза тому, что играет."""
+        self.call_volume(cfg)
+        if cfg.get("pause_media", True):
+            if not self.paused:
+                self.media_touched = False
+            asyncio.create_task(self._pause_media())
+
+    async def _pause_media(self):
+        """Музыка, видео — всё, что играет через MPRIS (Spotify, браузер, mpv), — на паузу; запомнить что."""
+        try:
+            players = (await base.sh("playerctl", "-l")).split()
+        except Exception:
+            return
+        for p in players:
+            try:
+                if (await base.sh("playerctl", "-p", p, "status")).strip() == "Playing":
+                    await base.sh("playerctl", "-p", p, "pause")
+                    if p not in self.paused:
+                        self.paused.append(p)
+            except Exception as e:
+                print("пауза:", p, repr(e), flush=True)
+
+    async def _resume_media(self):
+        """Разговор кончился — вернуть музыку. Не сразу: перебили по имени — начнётся новый, тогда ждём его."""
+        await asyncio.sleep(0.8)
+        if self.busy() or self.state != "idle" or not self.voice.idle.is_set():
+            return
+        players, self.paused = self.paused, []
+        if self.media_touched:                   # «пауза», «следующий трек», «включи …» — музыкой управлял сам
+            self.media_touched = False
+            return
+        for p in players:
+            try:
+                await base.sh("playerctl", "-p", p, "play")
+            except Exception as e:
+                print("продолжить:", p, repr(e), flush=True)
+
     def call_volume(self, cfg):
         """Позвали (имя, Super+A) — громкость системы на удобную (настройка, по умолчанию 35 %)."""
         if not cfg.get("call_volume_on", True):
@@ -406,7 +450,7 @@ class Daemon:
         rest = after_wake(text, config.wake_words(cfg), before)
         if rest is None:
             return
-        self.call_volume(cfg)
+        self.on_call(cfg)
         await self.emit("heard", text=text)
         if cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))
@@ -457,7 +501,7 @@ class Daemon:
             if self.busy() or not self.voice.idle.is_set():
                 await self.command({"cmd": "stop"})
             else:
-                self.call_volume(cfg)
+                self.on_call(cfg)
                 self.start(self.listen(cfg, to=msg.get("to")))
         elif cmd == "warm":
             asyncio.create_task(self.local.warm(cfg))

@@ -175,6 +175,37 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
         self.assertIn(("wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "0.35"), calls)
 
+    async def test_call_pauses_and_resumes_media(self):
+        state = {"spotify": "Playing", "firefox": "Paused"}
+        calls = []
+
+        async def sh(*argv, **kw):
+            calls.append(argv)
+            if argv[:2] == ("playerctl", "-l"):
+                return "spotify\nfirefox"
+            if argv[-1] == "status":
+                return state[argv[2]]
+            return ""
+        with patch("glass_assistant.tools.base.sh", sh):
+            self.d.on_call(config.load())
+            await asyncio.sleep(0.05)
+            self.assertIn(("playerctl", "-p", "spotify", "pause"), calls)
+            self.assertNotIn(("playerctl", "-p", "firefox", "pause"), calls)
+            await self.d._resume_media()
+        self.assertIn(("playerctl", "-p", "spotify", "play"), calls)
+        self.assertEqual(self.d.paused, [])
+
+    async def test_no_resume_after_music_command(self):
+        calls = []
+
+        async def sh(*argv, **kw):
+            calls.append(argv)
+            return ""
+        self.d.paused, self.d.media_touched = ["spotify"], True        # «следующий трек» в разговоре
+        with patch("glass_assistant.tools.base.sh", sh):
+            await self.d._resume_media()
+        self.assertNotIn(("playerctl", "-p", "spotify", "play"), calls)
+
     async def test_call_volume_off(self):
         calls = []
 
@@ -186,7 +217,7 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
                 patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "call_volume_on": False}):
             await self.d.command({"cmd": "listen"})
             await asyncio.sleep(0)
-        self.assertEqual(calls, [])
+        self.assertEqual([c for c in calls if c[0] == "wpctl"], [])
 
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
