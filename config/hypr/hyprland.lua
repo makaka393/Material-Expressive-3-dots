@@ -169,7 +169,7 @@ hl.bind("SUPER + F", hl.dsp.window.fullscreen())
 -- оболочка glass
 hl.bind("SUPER + Escape", hl.dsp.exec_cmd("qs ipc -c glass call lock lock"))
 hl.bind("SUPER + slash", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/nofs.sh qs ipc -c glass call hotkeys toggle"))
-hl.bind("SUPER + A", hl.dsp.exec_cmd("qs ipc -c glass call assistant listen"))   -- ассистент: спросить голосом (второй раз — стоп)
+hl.bind("SUPER + A", hl.dsp.exec_cmd("qs ipc -c glass call assistant talk"))   -- ассистент: спросить голосом (второй раз — стоп)
 hl.bind("SUPER + ALT + A", hl.dsp.exec_cmd("qs ipc -c glass call assistant listenClaude"))   -- то же, но сразу у Claude
 hl.bind("SUPER + SPACE", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/nofs.sh qs ipc -c glass call launcher toggle"))
 hl.bind("SUPER + PERIOD", hl.dsp.exec_cmd(home .. "/.config/hypr/scripts/nofs.sh qs ipc -c glass call launcher emoji"))

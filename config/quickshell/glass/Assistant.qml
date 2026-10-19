@@ -8,7 +8,7 @@ import Quickshell.Io
 // (~/.config/glass/assistant.json — служба перечитывает их на каждом вопросе).
 // Отвечает локальная модель; «морковь, …» в начале фразы, «??» в лаунчере или Super+Alt+A — Claude,
 // и его ответ открывается в лаунчере.
-//   qs ipc -c glass call assistant listen | listenClaude | stop | ask "вопрос" | askClaude "вопрос" | warm | unload
+//   qs ipc -c glass call assistant talk | listenClaude | stop | ask "вопрос" | askClaude "вопрос" | warm | unload
 Singleton {
     id: root
 
@@ -184,6 +184,8 @@ Singleton {
 
     IpcHandler {
         target: "assistant"
+        // «listen» — зарезервированное слово «qs ipc» с Quickshell 0.3 («Signal required to listen.»): Super+A зовёт talk
+        function talk(): void { root.listen(); }
         function listen(): void { root.listen(); }
         function listenClaude(): void { root.listenClaude(); }
         function askClaude(text: string): void { root.askClaude(text); }
