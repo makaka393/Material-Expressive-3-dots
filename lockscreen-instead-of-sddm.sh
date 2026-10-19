@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Намира ОС (glass-dots) — экран блокировки оболочки вместо SDDM.
 #   ./lockscreen-instead-of-sddm.sh          включить (сработает после перезагрузки)
-#   ./lockscreen-instead-of-sddm.sh --undo   вернуть SDDM
+#   ./lockscreen-instead-of-sddm.sh --undo   вернуть SDDM (если пакет удалён — поставит заново)
 #
 # Как это устроено: на tty1 включается автовход, оттуда запускается Hyprland, а оболочка
 # первым делом запирает экран (lockOnStart) — пароль вводится на экране блокировки с обоями.
@@ -39,6 +39,7 @@ if [ "${1:-}" = "--undo" ]; then
   sudo rm -f "$DROPIN"
   sudo rmdir --ignore-fail-on-non-empty "$(dirname "$DROPIN")" 2>/dev/null || true
   sudo systemctl daemon-reload
+  pacman -Qq sddm >/dev/null 2>&1 || sudo pacman -S --needed sddm
   sudo systemctl enable sddm
   strip_profile
   set_lock_on_start false
@@ -49,8 +50,16 @@ fi
 command -v start-hyprland >/dev/null || { echo "!! не найден start-hyprland"; exit 1; }
 [ -f "$SETTINGS" ] || { echo "!! нет $SETTINGS — оболочка glass ещё не запускалась"; exit 1; }
 
-echo "Сначала убедись, что экран блокировки принимает твой пароль:"
-echo "    qs ipc -c glass call lock test      (сам снимется через 15 секунд)"
+# пароль экрана блокировки проверяем до того, как от него будет зависеть вход
+LOCKED="${XDG_RUNTIME_DIR:-/tmp}/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/glass-locked"
+echo "Сначала проверим, что экран блокировки принимает твой пароль: экран запрётся,"
+echo "введи пароль (если не ввести — замок сам снимется через 15 секунд)."
+read -r -p "Запереть на проверку? [Y/n] " a
+if [ "$a" != n ] && [ "$a" != N ]; then
+  qs ipc -c glass call lock test >/dev/null || { echo "!! оболочка glass не отвечает"; exit 1; }
+  sleep 1
+  for _ in $(seq 40); do [ -e "$LOCKED" ] || break; sleep 0.5; done
+fi
 read -r -p "Пароль подошёл, продолжать? [y/N] " a
 [ "$a" = y ] || [ "$a" = Y ] || { echo "Отменено."; exit 1; }
 
@@ -75,6 +84,11 @@ set_lock_on_start true
 
 echo ":: отключаю SDDM (текущий сеанс не трогаю)"
 sudo systemctl disable sddm
+
+if pacman -Qq sddm >/dev/null 2>&1; then
+  read -r -p "Удалить пакет sddm совсем? [y/N] " a
+  if [ "$a" = y ] || [ "$a" = Y ]; then sudo pacman -R sddm; fi
+fi
 
 echo
 echo "Готово. После перезагрузки вместо SDDM будет экран блокировки оболочки."
