@@ -23,7 +23,7 @@ async def agen(it):
         yield f
 
 
-async def level(v):
+async def level(v, b=None):
     pass
 
 
@@ -44,6 +44,17 @@ class RecordTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_silence_only(self):
         self.assertIsNone(await record_utterance("", level, max_wait=0.5, frames=agen(frames([("quiet", 2.0)]))))
+
+    async def test_level_with_spectrum_every_frame(self):
+        # свет острова: громкость и доли четырёх полос — на каждый кадр (30 мс), пока слушает
+        got = []
+
+        async def on_level(v, b=None):
+            got.append((v, b))
+        await record_utterance("", on_level, tail=0.5, frames=agen(frames([("quiet", 0.3), ("loud", 0.6), ("quiet", 1.0)])))
+        self.assertGreaterEqual(len(got), 45)                 # каждый кадр до конца записи (~47), а не через один
+        self.assertTrue(all(len(b) == 4 and abs(sum(b) - 1) < 0.02 for _, b in got))
+        self.assertGreater(max(v for v, _ in got), 0.05)
 
 
 if __name__ == "__main__":

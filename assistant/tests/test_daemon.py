@@ -233,6 +233,12 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
         self.assertEqual([c for c in calls if c[0] == "wpctl"], [])
 
+    async def test_level_event_with_spectrum(self):
+        # свет острова: громкость и доли четырёх полос голоса — одним событием
+        await self.d.level(0.4567, [0.1, 0.2, 0.3, 0.4])
+        await self.d.level(0.2)
+        self.assertEqual(self.ev("level"), [{"v": 0.457, "b": [0.1, 0.2, 0.3, 0.4]}, {"v": 0.2}])
+
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
         await self.d.command({"cmd": "unload"})
@@ -396,6 +402,7 @@ class ServeTest(unittest.IsolatedAsyncioTestCase):
     async def test_voice_preloaded_on_start(self):
         # модель голоса грузится при запуске службы, а не при первом ответе (1,5 с + разогрев)
         with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.games.MARK", Path(tmp) / "glass-game"), \
                 patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
             d = Daemon()
             d.local = AsyncMock()
@@ -413,6 +420,7 @@ class ServeTest(unittest.IsolatedAsyncioTestCase):
         # оболочка держит сокет открытым всегда; служба всё равно должна выйти по SIGTERM сразу,
         # а не висеть до SIGKILL от systemd через полторы минуты
         with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.games.MARK", Path(tmp) / "glass-game"), \
                 patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
             d = Daemon()
             d.local = AsyncMock()
@@ -434,6 +442,7 @@ class CliTest(unittest.IsolatedAsyncioTestCase):
         # `python -m glass_assistant unload` пишет команду и сразу уходит; служба первым делом шлёт ему
         # состояние, запись в закрытый сокет рвёт соединение — и непрочитанная команда терялась
         with tempfile.TemporaryDirectory() as tmp, patch("glass_assistant.config.SOCKET", Path(tmp) / "a.sock"), \
+                patch("glass_assistant.games.MARK", Path(tmp) / "glass-game"), \
                 patch("glass_assistant.config.load", return_value=dict(config.DEFAULTS, wake=False)):
             d = Daemon()
             d.local = AsyncMock()

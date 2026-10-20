@@ -33,10 +33,12 @@ Island {
     property var shotTex: null
     property vector2d screenSize: Qt.vector2d(1, 1)
     property bool lens: false
-    onAssistChanged: {
+    function openLens() {
         if (assist) { if (shotView) shotView.captureFrame(); lensTimer.restart(); }
         else { lensTimer.stop(); lens = false; }
     }
+    onAssistChanged: openLens()
+    Component.onCompleted: if (assist) openLens()       // остров на AOD создаётся, когда Вега уже слушает
     Timer { id: lensTimer; interval: 60; onTriggered: root.lens = root.assist }
     cardRadius: lens ? 46 : Theme.radiusCard
     targetWidth: lens ? Math.max(compact.implicitWidth + 30, 470) : notif ? 460 : toast ? (toastImage ? 400 : 360)
@@ -230,6 +232,7 @@ Island {
         anchors.fill: parent
         st: Assistant.state
         level: Assistant.level
+        bands: Assistant.bands
         error: Assistant.error !== "" && !Assistant.busy
         active: root.lens
         islandRadius: root.radius

@@ -104,7 +104,7 @@ class Voice:
         self.said = collections.deque(maxlen=12)   # (время, текст): что звучало — эхо из колонок не перебивает
         self.idle_at = 0.0                         # когда замолчала
         self.piper = {}                            # модель → PiperVoice
-        self.on_level = None                       # async (0…1): громкость речи, пока звучит, — свет острова
+        self.on_level = None                       # async (0…1, полосы): громкость и спектр речи, пока звучит, — свет острова
         self.play_end = 0.0                        # когда доиграет отданное pw-play (часы цикла событий)
 
     def _load(self, path):
@@ -245,21 +245,24 @@ class Voice:
             self._maybe_idle()
 
     def _levels(self, pcm, gen, lead):
-        """Громкость куска по 30 мс — в on_level в том темпе, в каком он будет звучать: pw-play играет куски
-        подряд, так что начало этого — когда кончится прошлый (или через lead, если проигрыватель новый)."""
+        """Громкость и спектр куска по 30 мс — в on_level в том темпе, в каком он будет звучать: pw-play играет
+        куски подряд, так что начало этого — когда кончится прошлый (или через lead, если проигрыватель новый)."""
         import numpy as np
+        from .spectrum import bands
         x = np.frombuffer(pcm, dtype=np.float32)
         step = RATE * 3 // 100
         n = len(x) // step
         if n == 0:
             return
-        env = np.sqrt((x[:n * step].reshape(n, step).astype(np.float64) ** 2).mean(axis=1))
+        parts = x[:n * step].reshape(n, step).astype(np.float64)
+        env = np.sqrt((parts ** 2).mean(axis=1))
+        spec = [bands(p, RATE) for p in parts]
         now = asyncio.get_running_loop().time()
         start = max(now + lead, self.play_end)
         self.play_end = start + len(x) / RATE
-        asyncio.create_task(self._emit_levels(env, start, step / RATE, gen))
+        asyncio.create_task(self._emit_levels(env, spec, start, step / RATE, gen))
 
-    async def _emit_levels(self, env, start, dt, gen):
+    async def _emit_levels(self, env, spec, start, dt, gen):
         loop = asyncio.get_running_loop()
         for i, v in enumerate(env):
             delay = start + i * dt - loop.time()
@@ -268,7 +271,7 @@ class Voice:
             if gen != self.gen:
                 return
             try:
-                await self.on_level(min(1.0, float(v) * 4.0))
+                await self.on_level(min(1.0, float(v) * 4.0), spec[i])
             except Exception:
                 return
 

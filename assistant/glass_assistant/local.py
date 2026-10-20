@@ -15,7 +15,7 @@ from datetime import datetime
 
 import httpx2
 
-from . import config, intents, memory, tools
+from . import config, games, intents, memory, tools
 
 SYSTEM = """Ты — голосовой ассистент на компьютере пользователя (Arch Linux, Hyprland). Отвечай по-русски.
 - Просят что-то сделать — вызови инструмент. Не переспрашивай, если можно разумно догадаться.
@@ -75,6 +75,7 @@ class LocalServer:
         return f"http://127.0.0.1:{self.port}"
 
     async def ensure(self, cfg):
+        games.check()                                     # идёт игра — видеокарта её
         async with self.lock:
             self.used = time.monotonic()
             if self.proc and self.proc.returncode is None:

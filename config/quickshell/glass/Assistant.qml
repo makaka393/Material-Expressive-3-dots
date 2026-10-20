@@ -31,7 +31,8 @@ Singleton {
     readonly property bool online: sock.connected
     property string state: "idle"          // idle | listening | transcribing | thinking | speaking
     property bool hasKey: false            // у службы есть ключ Claude API
-    property real level: 0                 // громкость микрофона, пока слушает
+    property real level: 0                 // громкость: микрофона, пока слушает, её голоса — пока говорит
+    property var bands: [0.25, 0.25, 0.25, 0.25]   // и доли четырёх полос спектра (свет острова)
     property string heard: ""              // вопрос: распознанный или набранный
     property string answer: ""             // ответ, по мере появления
     property string backend: ""            // кто отвечает: claude | local (известно до ответа — событие route)
@@ -63,12 +64,14 @@ Singleton {
         switch (ev.ev) {
         case "state":
             if (ev.state === "listening" && state === "idle") { heard = ""; answer = ""; error = ""; voice = true; fresh(); }
+            // ответ остаётся на экране: таймер — раньше, чем idle, иначе showing на миг гаснет и остров
+            // Веги закрывается и открывается заново (с волной вызова)
+            if (ev.state === "idle" && (answer !== "" || error !== "")) linger.restart();
             state = ev.state;
             hasKey = !!ev.key;
             if (ev.state !== "listening") level = 0;
-            if (ev.state === "idle" && (answer !== "" || error !== "")) linger.restart();
             break;
-        case "level": level = ev.v; break;
+        case "level": level = ev.v; if (ev.b) bands = ev.b; break;
         case "heard": heard = ev.text; answer = ""; break;
         case "route":
             backend = ev.brain;

@@ -6,7 +6,8 @@
 Команды (клиент → служба):
   {"cmd": "ask", "text": "...", "speak": false, "to": "claude"}   вопрос текстом (лаунчер); to — сразу в Claude
   {"cmd": "listen", "to": "claude"}              выслушать вопрос голосом и ответить голосом; второй раз — стоп
-  {"cmd": "warm"} | {"cmd": "unload"}            загрузить локальную модель заранее | выгрузить (игра)
+  {"cmd": "warm"} | {"cmd": "unload"}            загрузить локальную модель заранее | выгрузить
+Игровой режим (games.py) — не командой, а по метке $XDG_RUNTIME_DIR/glass-game: её ставит оболочка.
   {"cmd": "stop"}                                прервать: слушание, ответ, озвучку
   {"cmd": "say", "text": "...", "preview": true, "voice": "baya", "tone": 0.5, "speed": 1.1, "height": 0}
                                                  произнести; preview — оборвать прошлое и этим голосом
@@ -34,7 +35,7 @@ import time
 import httpx2
 import numpy as np
 
-from . import chime, config
+from . import chime, config, games
 from .claude import UNAVAILABLE, ClaudeBrain
 from .local import LocalBrain, LocalServer
 from .router import route, sound, wake
@@ -73,7 +74,7 @@ class Daemon:
         self.stopping = asyncio.Event()  # SIGTERM/SIGINT
         self.whisper = Whisper()
         self.voice = Voice()
-        self.voice.on_level = lambda v: self.emit("level", v=round(v, 3))   # пока говорит — свет острова дышит её голосом
+        self.voice.on_level = self.level                 # пока говорит — свет острова дышит её голосом
         self.clients = set()
         self.state = "idle"
         self.job = None
@@ -89,6 +90,10 @@ class Daemon:
                 w.write(line)
             except (ConnectionError, RuntimeError):
                 self.clients.discard(w)
+
+    async def level(self, v, b=None):
+        """Громкость (0…1) и спектр (доли четырёх полос) — микрофона, пока слушает, и её голоса, пока говорит."""
+        await self.emit("level", v=round(v, 3), **({"b": b} if b else {}))
 
     async def set_state(self, s):
         self.state = s
@@ -124,7 +129,7 @@ class Daemon:
         warm = asyncio.create_task(self.whisper.ensure(cfg))      # Whisper грузится, пока ты говоришь
         if to != "claude" and cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))             # и локальная модель
-        level = lambda v: self.emit("level", v=round(v, 3))
+        level = self.level
         pause = float(cfg.get("pause") or 2.0)
         audio = await (record_utterance(config.mic(cfg), level, max_wait=FOLLOW_WAIT, tail=pause) if depth
                        else record_utterance(config.mic(cfg), level, tail=pause))
@@ -206,10 +211,11 @@ class Daemon:
                 await self.local_brain.answer(r.text, v, delta, action)
                 backend = "local"
         else:
+            games.check()                                         # идёт игра — локальной модели нет
             try:
                 await self.local_brain.answer(r.text, v, delta, action)
             except (RuntimeError, httpx2.HTTPError) as e:
-                if not config.has_key():
+                if isinstance(e, games.Gaming) or not config.has_key():
                     raise
                 print(f"локальная модель: {e!r}, отвечает Claude", flush=True)
                 await delta("Локальная модель не запустилась — спросил Claude: ")
@@ -264,7 +270,8 @@ class Daemon:
         """Имя не ждём, когда служба слушает сама (вопрос, продолжение разговора) или слово выключено.
         Пока думает и говорит — ждём: позвал по имени — перебил."""
         cfg = config.load()
-        return not cfg["wake"] or not cfg.get("enabled", True) or self.busy() and self.state in ("listening", "transcribing")
+        return (not cfg["wake"] or not cfg.get("enabled", True) or games.playing
+                or self.busy() and self.state in ("listening", "transcribing"))
 
     def _echo(self, words, barge) -> bool:
         """Своё имя из колонок: пока говорит — если оно было в её речи, сразу после — если только что."""
@@ -465,6 +472,27 @@ class Daemon:
             chime.play("wake")                                    # «Вега!» — звук и слушаем вопрос
             self.start(self.listen(cfg))
 
+    # ── игровой режим (games.py): игра началась — модели выгружаются, кончилась — всё как было
+    async def game_tick(self):
+        on = games.MARK.exists()
+        if on == games.playing:
+            return
+        games.playing = on
+        print("игра: Whisper и локальная модель выгружены, Вега спит" if on else "игра закончилась", flush=True)
+        if on:
+            if self.busy() and self.state in ("listening", "transcribing"):
+                self.job.cancel()
+            await self.local.unload()
+            await self.whisper.stop()
+
+    async def game_watch(self):
+        while True:
+            try:
+                await self.game_tick()
+            except Exception as e:
+                print("игровой режим:", repr(e), flush=True)
+            await asyncio.sleep(2)
+
     # ── обслуживание: выгрузить простаивающие модели
     async def reaper(self):
         while True:
@@ -505,11 +533,14 @@ class Daemon:
         elif cmd == "listen":
             if self.busy() or not self.voice.idle.is_set():
                 await self.command({"cmd": "stop"})
+            elif games.playing:
+                await self.emit("error", text=games.TEXT)
             else:
                 self.on_call(cfg)
                 self.start(self.listen(cfg, to=msg.get("to")))
         elif cmd == "warm":
-            asyncio.create_task(self.local.warm(cfg))
+            if not games.playing:
+                asyncio.create_task(self.local.warm(cfg))
         elif cmd == "unload":
             await self.local.unload()
         elif cmd == "stop":
@@ -541,6 +572,7 @@ class Daemon:
         os.chmod(path, 0o600)
         timers.SCHED = timers.Scheduler(config.DATA / "reminders.json", self.announce)
         tasks = [asyncio.create_task(self.reaper()), asyncio.create_task(self.wake_loop()),
+                 asyncio.create_task(self.game_watch()),
                  asyncio.create_task(timers.SCHED.run()),
                  asyncio.create_task(self.voice.ready(config.load()))]       # голос — заранее, не при первом ответе
         loop = asyncio.get_running_loop()

@@ -11,7 +11,8 @@ import wave
 import httpx2
 import numpy as np
 
-from . import config
+from . import config, games
+from .spectrum import bands
 
 RATE = 16000
 FRAME = 480                       # 30 мс
@@ -85,8 +86,7 @@ async def _collect(frames, on_level, max_wait, max_len, tail):
     async for frame in frames:
         n += 1
         rms = vad.level(frame)
-        if n % 2 == 0:
-            await on_level(min(1.0, rms / 6000.0))
+        await on_level(min(1.0, rms / 6000.0), bands(frame, RATE))   # свет острова: громкость и спектр
         if n < 8:                                     # первые 240 мс — только шум комнаты
             vad.speech(rms)
             continue
@@ -132,6 +132,7 @@ class Whisper:
         return f"http://127.0.0.1:{self.PORT}"
 
     async def ensure(self, cfg):
+        games.check()                                     # идёт игра — видеокарта её
         async with self.lock:
             self.used = time.monotonic()
             if self.proc and self.proc.returncode is None:

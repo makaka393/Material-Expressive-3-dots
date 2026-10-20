@@ -244,10 +244,11 @@ class LevelTest(unittest.IsolatedAsyncioTestCase):
     async def test_levels_follow_audio(self):
         import numpy as np
         v = Voice()
-        got = []
+        got, spec = [], []
 
-        async def on_level(x):
+        async def on_level(x, b=None):
             got.append(x)
+            spec.append(b)
         v.on_level = on_level
         t = np.arange(4800) / 48000                       # 0,1 с: громко, потом тихо
         pcm = np.concatenate([np.sin(2 * np.pi * 200 * t) * 0.2, np.zeros(4800)]).astype("float32").tobytes()
@@ -256,14 +257,16 @@ class LevelTest(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(got), 6)
         self.assertGreater(got[0], 0.3)
         self.assertLess(got[-1], 0.05)
+        self.assertEqual(int(max(range(4), key=lambda i: spec[0][i])), 0)     # 200 Гц — низ
 
     async def test_stop_cuts_levels(self):
         import numpy as np
         v = Voice()
-        got = []
+        got, spec = [], []
 
-        async def on_level(x):
+        async def on_level(x, b=None):
             got.append(x)
+            spec.append(b)
         v.on_level = on_level
         v._levels(np.full(48000, 0.2, dtype="float32").tobytes(), v.gen, 0.0)
         await asyncio.sleep(0.1)
