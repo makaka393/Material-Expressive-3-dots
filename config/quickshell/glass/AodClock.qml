@@ -20,13 +20,17 @@ Item {
     property bool showDate: true
     // цвета циферблата: на AOD и экране блокировки — цвета темы, на рабочем столе виджет «Часы»
     // передаёт свои (ink), подобранные под его фон, — иначе на светлом стекле светлые стрелки терялись.
+    // В монохромной теме часы чисто белые: стрелки, цифры, точки и дата, а не серые оттенки палитры.
     //   ink: { fg, dim, primary, tertiary, base } или null
     property var ink: null
-    readonly property color cFg: ink ? ink.fg : Theme.fg
-    readonly property color cDim: ink ? ink.dim : Theme.fgVariant
-    readonly property color cPrimary: ink ? ink.primary : Theme.primary
-    readonly property color cTertiary: ink ? ink.tertiary : Theme.tertiary
+    readonly property color cFg: ink ? ink.fg : Theme.mono ? "white" : Theme.fg
+    readonly property color cDim: ink ? ink.dim : Theme.mono ? "white" : Theme.fgVariant
+    readonly property color cPrimary: ink ? ink.primary : Theme.mono ? "white" : Theme.primary
+    readonly property color cTertiary: ink ? ink.tertiary : Theme.mono ? "white" : Theme.tertiary
     readonly property color cBase: ink ? ink.base : Theme.surface
+    // крупные залитые фигуры (солнце «Планет», «Формы») и цифры на них; в моно — белые с тёмными цифрами
+    readonly property color cFill: Theme.mono ? "white" : Theme.primaryContainer
+    readonly property color cOnFill: Theme.mono ? Theme.primaryFg : Theme.primaryContainerFg
     property color dateColor: cDim                // дата под циферблатом (на рабочем столе — под цвет обоев)
     // на рабочем столе: подложки фигур — стекло темы (WidgetSurface: размытие и прозрачность из
     // настроек виджета и оболочки) вместо полупрозрачной заливки AOD. { cfg, tone } или null
@@ -73,7 +77,12 @@ Item {
                 columns: 2
                 spacing: 10 * c.k
                 Repeater {
-                    model: [
+                    model: Theme.mono ? [                    // монохромная тема — все фигуры белые
+                        { ch: c.hh[0], bg: c.cFill, fg: c.cOnFill, shape: "cookie" },
+                        { ch: c.hh[1], bg: c.cFill, fg: c.cOnFill, shape: "squircle" },
+                        { ch: c.mm[0], bg: c.cFill, fg: c.cOnFill, shape: "clover" },
+                        { ch: c.mm[1], bg: c.cFill, fg: c.cOnFill, shape: "hex" }
+                    ] : [
                         { ch: c.hh[0], bg: Theme.primaryContainer,   fg: Theme.primaryContainerFg,   shape: "cookie" },    // «печенька»
                         { ch: c.hh[1], bg: Theme.tertiaryContainer,  fg: Theme.tertiaryContainerFg,  shape: "squircle" },  // суперэллипс
                         { ch: c.mm[0], bg: Theme.secondaryContainer, fg: Theme.secondaryContainerFg, shape: "clover" },    // четырёхлистник

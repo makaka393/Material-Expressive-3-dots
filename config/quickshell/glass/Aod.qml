@@ -94,6 +94,53 @@ PanelWindow {
         }
     }
 
+    // ── Вега на AOD: позвали по имени, пока экран спит, — тот же остров с линзой и светом, на том же
+    // месте, что в баре (бар под AOD спрятан). Ответила — остров сворачивается и уходит
+    readonly property bool vega: Assistant.showing && Assistant.voice && !Assistant.windowed
+    property bool vegaShown: false
+    onVegaChanged: if (vega) vegaShown = true; else vegaHide.restart()
+    Timer { id: vegaHide; interval: 900; onTriggered: win.vegaShown = win.vega }
+    // снимок экрана для линзы — как в Bar.qml; живёт вместе с окном AOD: к вызову Веги уже готов снимать
+    ScreencopyView {
+        id: shot
+        captureSource: win.screen
+        live: false
+        width: win.width
+        height: win.height
+    }
+    ShaderEffectSource {
+        id: shotTex
+        sourceItem: shot
+        hideSource: true
+        live: true
+        mipmap: true
+        smooth: true
+        textureSize: Qt.size(Math.max(1, shot.width), Math.max(1, shot.height))
+        visible: false
+        width: 1; height: 1
+    }
+    Loader {
+        anchors.fill: parent
+        active: win.open && win.vegaShown
+        sourceComponent: Item {
+            id: vg
+            property bool shown: false
+            Component.onCompleted: shown = Qt.binding(() => win.vega)
+            opacity: shown ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: vg.shown ? 260 : 600; easing.type: Easing.OutCubic } }
+
+            DynamicIsland {
+                anchors { top: parent.top; topMargin: Theme.outer; horizontalCenter: parent.horizontalCenter }
+                shotView: shot
+                shotTex: shotTex
+                screenSize: Qt.vector2d(win.width, win.height)
+                transformOrigin: Item.Top
+                scale: vg.shown ? 1 : 0.9
+                Behavior on scale { Anim { kind: "fast" } }
+            }
+        }
+    }
+
     IpcHandler {
         target: "aod"
         // не «show»: qs ipc принимает это слово за свою подкоманду и ничего не вызывает

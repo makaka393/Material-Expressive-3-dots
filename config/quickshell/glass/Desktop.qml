@@ -90,6 +90,11 @@ Variants {
         ShaderEffectSource { id: blurTex; sourceItem: wallBlur; hideSource: true; live: true; smooth: true; visible: false; width: 1; height: 1 }
         readonly property var glassBackdrop: blurTex
 
+        // AOD на этом экране — виджеты гаснут: на затемнённых обоях остаются только часы AOD
+        readonly property bool underAod: Config.aodScreen !== "" && !!win.screen && Config.aodScreen === win.screen.name
+        property real widgetsShown: underAod ? 0 : 1
+        Behavior on widgetsShown { NumberAnimation { duration: win.underAod ? 700 : 280; easing.type: Easing.OutCubic } }
+
         // ── средний цвет обоев по участкам ~32×32 px (обои кадрируются по центру, как у awww):
         // по нему виджеты подбирают цвет текста — тёмный на светлых обоях, светлый на тёмных
         // (WidgetSurface.under). Считается раз на смену обоев
@@ -322,7 +327,7 @@ Variants {
                     }
                 }
 
-                opacity: leaving ? 0 : Math.min(1, appear * 1.6)
+                opacity: (leaving ? 0 : Math.min(1, appear * 1.6)) * win.widgetsShown
                 scale: (leaving ? 0.55 : 0.55 + 0.45 * appear) * (dragging ? 1.04 : resizing ? 1 : 1 - 0.05 * editK)
                 Behavior on opacity { enabled: host.leaving; NumberAnimation { duration: 260; easing.type: Easing.InCubic } }
 

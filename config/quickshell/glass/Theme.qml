@@ -66,6 +66,8 @@ Singleton {
     readonly property color fgVariant: c.surfaceVariantFg
     readonly property color outline: c.outline
     readonly property color outlineVariant: c.outlineVariant
+    // монохромная тема («Моно» в выборе обоев, ч/б цвет или схема): палитра без цвета — часы тогда чисто белые
+    readonly property bool mono: primary.hslSaturation < 0.05 && secondary.hslSaturation < 0.05 && tertiary.hslSaturation < 0.05
 
     // поверхности островов: «стекло» (тёмная дымка + блюр Hyprland) или M3 (тональные поверхности)
     readonly property real m3Opacity: Math.max(0.02, Config.m3Opacity)

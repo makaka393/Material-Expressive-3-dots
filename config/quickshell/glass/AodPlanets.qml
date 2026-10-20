@@ -55,14 +55,14 @@ Column {
             anchors.centerIn: parent
             width: 150 * pl.k; height: width
             kind: "cookie"; lobes: 12
-            color: Theme.primaryContainer
+            color: pl.clock.cFill
             scale: pl.clock.at(0.02, 0.6)
             rotation: sys.minDeg / 12
         }
         Row {
             anchors.centerIn: parent
-            AodDigit { ch: pl.clock.hh[0]; size: 66 * pl.k; weight: 680; color: Theme.primaryContainerFg; appear: pl.clock.at(0.12, 0.5) }
-            AodDigit { ch: pl.clock.hh[1]; size: 66 * pl.k; weight: 680; color: Theme.primaryContainerFg; appear: pl.clock.at(0.17, 0.5) }
+            AodDigit { ch: pl.clock.hh[0]; size: 66 * pl.k; weight: 680; color: pl.clock.cOnFill; appear: pl.clock.at(0.12, 0.5) }
+            AodDigit { ch: pl.clock.hh[1]; size: 66 * pl.k; weight: 680; color: pl.clock.cOnFill; appear: pl.clock.at(0.17, 0.5) }
         }
 
         // луна: где сейчас час
