@@ -120,9 +120,9 @@ def about(text: str, lang: str = "ru") -> str | None:
     """Ответ на «как тебя зовут» / «кто ты», если фраза целиком об этом; иначе None."""
     t = _norm(text)
     if NAME_Q.fullmatch(t):
-        return "My name is Vega." if lang == "en" else f"Меня зовут {config.NAME}."
+        return "My name is Ayanami." if lang == "en" else f"Меня зовут {config.NAME}."
     if WHO_Q.fullmatch(t):
-        return "I'm Vega, your assistant on this computer." if lang == "en" else f"Я {config.NAME} — твой ассистент на этом компьютере."
+        return "I'm Ayanami, your assistant on this computer." if lang == "en" else f"Я {config.NAME} — твой ассистент на этом компьютере."
     return None
 
 

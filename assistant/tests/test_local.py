@@ -221,14 +221,14 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("- Пользователя зовут Рома", self.llama.bodies[0]["messages"][0]["content"])
 
     async def test_name_in_system_prompt(self):
-        # имя одно — «Вега»; старое «name» в assistant.json («Ирис») не действует
+        # имя одно — «Аянами»; старое «name» в assistant.json («Ирис») не действует
         self.llama.replies = [[text("а")]]
         with patch("glass_assistant.config.load", return_value={**config.DEFAULTS, "name": "Ирис", "voice": "baya"}):
             await self.ask("что ты умеешь")
         first = self.llama.bodies[0]["messages"][0]["content"]
         # только имя и только в конце: «Ты — <имя>… о себе в женском роде» в начале делало модель болтливой —
         # она отвечала словами вместо вызовов (eval 63/78 и 0,75 с против 70/78 и 0,42 с)
-        self.assertIn("Тебя зовут Вега.", first)
+        self.assertIn("Тебя зовут Аянами.", first)
         self.assertIn("Болгарскую музыку не включай", first)
         self.assertNotIn("неформально", first)          # стиль — только Claude: локальная от него болтает вместо вызовов
         self.assertNotIn("Ирис", first)
@@ -237,10 +237,10 @@ class BrainTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_name_question_without_model(self):
         r = await self.ask("Как тебя зовут?")
-        self.assertEqual(r.text, "Меня зовут Вега.")
+        self.assertEqual(r.text, "Меня зовут Аянами.")
         self.assertEqual(self.llama.bodies, [])
         r = await self.ask("кто ты такая")
-        self.assertIn("Вега", r.text)
+        self.assertIn("Аянами", r.text)
 
     async def test_system_prompt_constant(self):
         # озвучка не меняет системный промпт — иначе llama-server пересчитывает его и инструменты (~1,5 с)

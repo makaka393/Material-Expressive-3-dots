@@ -79,7 +79,7 @@ class Daemon:
         self.state = "idle"
         self.job = None
         self.wake_task = None
-        self.paused = []                 # плееры, которые Вега поставила на паузу при вызове — после разговора снова
+        self.paused = []                 # плееры, которые она поставила на паузу при вызове — после разговора снова
         self.media_touched = False       # в разговоре просили что-то с музыкой — сами не возобновляем
 
     # ── события
@@ -317,7 +317,7 @@ class Daemon:
                         continue
                     # в смеси двух голосов Whisper слышит её, а не тебя — с подсказкой перебили 8 из 8, без — 6
                     head = list(ring)
-                    text = await self.whisper.transcribe(cfg, np.concatenate(head), prompt=f"{config.NAME}.")
+                    text = await self.whisper.transcribe(cfg, np.concatenate(head), prompt=config.WAKE_PROMPT)
                     if after_wake(text, words) is None or self._echo(words, barge=True):
                         continue
                     await self._barge()
@@ -335,10 +335,10 @@ class Daemon:
                 if quiet < WAKE_GAP and len(seg) * FRAME / RATE < WAKE_MAX:
                     continue
                 chunk, seg = seg, []
-                if talking_for < 0.12:                      # щелчок, вздох; быстрое «Вега!» — 0,2 с
+                if talking_for < 0.12:                      # щелчок, вздох; быстрое «Аянами!» — 0,4 с
                     continue
-                # подсказка с именем: «Вега» 77 из 90 против 70, ложных на речи без имени и в шуме — 0
-                text = await self.whisper.transcribe(cfg, np.concatenate(chunk), prompt=f"{config.NAME}.")
+                # подсказка с именем (config.WAKE_PROMPT): в шуме 37 из 40 против 20, ложных на речи без имени — 0
+                text = await self.whisper.transcribe(cfg, np.concatenate(chunk), prompt=config.WAKE_PROMPT)
                 rest = after_wake(text, words)
                 if rest is None:
                     if hint := near_name(text, words):
@@ -369,14 +369,14 @@ class Daemon:
         head — окно, где перебили: вопрос в нём оборван посреди слова, его распознаём вместе с продолжением."""
         words = config.wake_words(cfg)
         try:
-            if after_wake(text, words, before):             # «Вега, поставь…» — дослушать, вдруг ещё говоришь
+            if after_wake(text, words, before):             # «Аянами, поставь…» — дослушать, вдруг ещё говоришь
                 await self.set_state("listening")
                 more = await self._rest_of_phrase(cfg, queue, vad)
                 if self._wake_paused():                     # пока дослушивал — нажали Super+A
                     return
                 if more:
                     await self.set_state("transcribing")
-                    full = await self.whisper.transcribe(cfg, np.concatenate(head + more), prompt=f"{config.NAME}.") if head else None
+                    full = await self.whisper.transcribe(cfg, np.concatenate(head + more), prompt=config.WAKE_PROMPT) if head else None
                     if full and after_wake(full, words, before):
                         text = full
                     else:
@@ -467,9 +467,9 @@ class Daemon:
         if cfg["backend"] != "claude":
             asyncio.create_task(self.local.warm(cfg))
         if rest:
-            self.start(self.ask(rest, voice=True))                # «Вега, какая погода?» — сразу вопрос
+            self.start(self.ask(rest, voice=True))                # «Аянами, какая погода?» — сразу вопрос
         else:
-            chime.play("wake")                                    # «Вега!» — звук и слушаем вопрос
+            chime.play("wake")                                    # «Аянами!» — звук и слушаем вопрос
             self.start(self.listen(cfg))
 
     # ── игровой режим (games.py): игра началась — модели выгружаются, кончилась — всё как было
@@ -478,7 +478,7 @@ class Daemon:
         if on == games.playing:
             return
         games.playing = on
-        print("игра: Whisper и локальная модель выгружены, Вега спит" if on else "игра закончилась", flush=True)
+        print("игра: Whisper и локальная модель выгружены, Аянами спит" if on else "игра закончилась", flush=True)
         if on:
             if self.busy() and self.state in ("listening", "transcribing"):
                 self.job.cancel()
@@ -525,7 +525,7 @@ class Daemon:
         cmd = msg.get("cmd")
         cfg = config.load()
         if cmd in ("ask", "listen") and not cfg.get("enabled", True):
-            await self.emit("error", text="Вега выключена — включить: Настройки → Ассистент")
+            await self.emit("error", text="Аянами выключена — включить: Настройки → Ассистент")
             return
         if cmd == "ask" and msg.get("text", "").strip():
             self.voice.stop()
@@ -600,7 +600,7 @@ class Daemon:
 
 def after_wake(text: str, words, before: bool = True) -> str | None:
     """Если во фразе есть имя ассистента — что к нему сказано ("" — только имя), иначе None."""
-    return wake(text, words, before)                   # «эй, Вега …», «Vega, …», «Какая погода, Вега?» — по звучанию
+    return wake(text, words, before)                   # «эй, Аянами …», «Ayanami, …», «Какая погода, Аянами?» — по звучанию
 
 
 def near_name(text: str, words) -> str | None:

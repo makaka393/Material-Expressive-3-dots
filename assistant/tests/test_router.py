@@ -38,7 +38,7 @@ class RouteTest(unittest.TestCase):
 
 
 class DefaultWordsTest(unittest.TestCase):
-    """Слова по умолчанию: «Вега» — активатор, «морковь» — в Claude (любая форма)."""
+    """Слова по умолчанию: «Аянами» — активатор, «морковь» — в Claude (любая форма)."""
 
     def test_morkov_forms(self):
         for t in ("морковь, почему небо синее", "Морковка, почему небо синее", "морковку почему небо синее"):
@@ -46,7 +46,7 @@ class DefaultWordsTest(unittest.TestCase):
 
     def test_name_then_morkov(self):
         from glass_assistant.router import wake
-        rest = wake("Вега, морковь, почему небо синее?", config.wake_words(config.DEFAULTS))
+        rest = wake("Аянами, морковь, почему небо синее?", config.wake_words(config.DEFAULTS))
         self.assertEqual(route(rest, config.DEFAULTS), Route("claude", "почему небо синее?", False))
 
     def test_quotes_stripped(self):
@@ -56,12 +56,12 @@ class DefaultWordsTest(unittest.TestCase):
     def test_name_latin(self):
         # Whisper иногда пишет имя латиницей
         from glass_assistant.router import wake
-        self.assertEqual(wake("Vega, выкрути яркость на максимум.", config.wake_words(config.DEFAULTS)),
+        self.assertEqual(wake("Ayanami, выкрути яркость на максимум.", config.wake_words(config.DEFAULTS)),
                          "выкрути яркость на максимум.")
 
     def test_name_plain_is_local(self):
         from glass_assistant.router import wake
-        rest = wake("Вега, выкрути яркость на максимум", config.wake_words(config.DEFAULTS))
+        rest = wake("Аянами, выкрути яркость на максимум", config.wake_words(config.DEFAULTS))
         self.assertEqual(route(rest, config.DEFAULTS), Route("local", "выкрути яркость на максимум", False))
 
 
@@ -75,35 +75,36 @@ class StripWordTest(unittest.TestCase):
 
 
 class NameTest(unittest.TestCase):
-    """Имя ассистента — «Вега», оно же слово-активатор."""
+    """Имя ассистента — «Аянами», оно же слово-активатор."""
 
     def test_name(self):
-        self.assertEqual(config.NAME, "Вега")
+        self.assertEqual(config.NAME, "Аянами")
         self.assertNotIn("name", config.DEFAULTS)
 
     def test_heard_forms(self):
         from glass_assistant.router import wake
-        for heard, rest in [("Вега, громче", "громче"), ("Вега.", ""), ("Vega, громче", "громче"),
-                            ("- Вега, какая погода?", "какая погода?"), ("«Вега, следующий трек»", "следующий трек"),
-                            ("эй, Вега", ""), ("Так, Вега, громче.", "громче.")]:
+        for heard, rest in [("Аянами, громче", "громче"), ("Аянами.", ""), ("Ayanami, громче", "громче"),
+                            ("Альянами, громче", "громче"), ("- Аянами, какая погода?", "какая погода?"),
+                            ("«Аянами, следующий трек»", "следующий трек"), ("эй, Аянами", ""), ("Так, Аянами, громче.", "громче.")]:
             self.assertEqual(wake(heard, config.wake_words(config.DEFAULTS)), rest, heard)
 
     def test_name_at_end_takes_question_before(self):
         from glass_assistant.router import wake
         w = config.wake_words(config.DEFAULTS)
-        self.assertEqual(wake("Какая погода, Вега?", w), "Какая погода")
-        self.assertEqual(wake("Слушай, громче, Вега!", w), "громче")
-        self.assertEqual(wake("Ну и дела. Вега.", w), "")              # другое предложение — только имя
-        self.assertEqual(wake("Будет солнечно, Вега", w, before=False), "")   # перебили — её речь не вопрос
+        self.assertEqual(wake("Какая погода, Аянами?", w), "Какая погода")
+        self.assertEqual(wake("Слушай, громче, Аянами!", w), "громче")
+        self.assertEqual(wake("Ну и дела. Аянами.", w), "")              # другое предложение — только имя
+        self.assertEqual(wake("Будет солнечно, Аянами", w, before=False), "")   # перебили — её речь не вопрос
 
     def test_old_names_retired(self):
         from glass_assistant.router import wake
-        for heard in ("Обсидиан, громче", "Ирис, громче", "Аврора, громче"):
+        for heard in ("Обсидиан, громче", "Ирис, громче", "Аврора, громче", "Вега, громче", "Рей, громче"):
             self.assertIsNone(wake(heard, config.wake_words({**config.DEFAULTS, "name": "Ирис"})), heard)
 
     def test_no_false_names(self):
         from glass_assistant.router import wake
-        for heard in ("Лас-Вегас красивый", "вегетарианский суп", "его нет дома", "век живи", "Ева пришла"):
+        for heard in ("Лас-Вегас красивый", "а я на ней", "а я нами доволен", "Аяна пришла", "Аня, громче",
+                      "рейс задержали на час", "альянс распался", "его нет дома"):
             self.assertIsNone(wake(heard, config.wake_words(config.DEFAULTS)), heard)
 
     def test_extra_wake_words_kept(self):

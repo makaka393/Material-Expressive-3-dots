@@ -877,8 +877,8 @@ Item {
                 spacing: 4
                 Label { text: Assistant.name; size: 26; weight: 750; elide: Text.ElideNone }
                 Label { width: parent.width; wrapMode: Text.Wrap; elide: Text.ElideNone; size: 14; color: Theme.fgVariant
-                        text: I18n.t("Позови «Вега» или нажми Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
-                                     "Say “Vega” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
+                        text: I18n.t("Позови «Аянами» или нажми Super+A — голосом, Super+Space и «?» — текстом. Отвечает локальная модель; «морковь» в начале фразы, «??» или Super+Alt+A — Claude.",
+                                     "Say “Ayanami” or press Super+A to talk, Super+Space then “?” to type. A local model answers; start with “morkov”, type “??” or press Super+Alt+A for Claude.") }
             }
 
             // ── главный тумблер: Вега вообще включена
@@ -896,7 +896,7 @@ Item {
                 Column {
                     anchors { left: apIcon.right; leftMargin: 14; right: apSw.left; rightMargin: 10; verticalCenter: parent.verticalCenter }
                     Label { width: parent.width; size: 16; weight: 750; color: Assistant.cfg.enabled ? Theme.primaryContainerFg : Theme.fg
-                            text: Assistant.cfg.enabled ? I18n.t("Вега включена", "Vega is on") : I18n.t("Вега выключена", "Vega is off") }
+                            text: Assistant.cfg.enabled ? I18n.t("Аянами включена", "Ayanami is on") : I18n.t("Аянами выключена", "Ayanami is off") }
                     Label { width: parent.width; size: 12
                             color: Assistant.cfg.enabled ? Qt.alpha(Theme.primaryContainerFg, 0.75) : Theme.fgVariant
                             text: Assistant.cfg.enabled ? I18n.t("Слушает имя и Super+A, отвечает", "Listens for her name and Super+A")
@@ -991,7 +991,7 @@ Item {
                 AsOption { width: parent.width; k: "pauseMedia"; icon: "pause_circle"
                            text: I18n.t("Пауза музыке и видео, пока говорим", "Pause music and video while we talk") }
                 AsOption { width: parent.width; k: "wake"; icon: "hearing"
-                           text: I18n.t("Звать по имени — «Вега»", "Wake by name — “Vega”") }
+                           text: I18n.t("Звать по имени — «Аянами»", "Wake by name — “Ayanami”") }
                 AsOption { width: parent.width; k: "speakVoice"; icon: "record_voice_over"
                            text: I18n.t("Отвечать голосом на голосовые вопросы", "Speak answers to voice questions") }
 

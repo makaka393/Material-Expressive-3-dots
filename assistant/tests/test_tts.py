@@ -111,8 +111,10 @@ class SpeakableTest(unittest.TestCase):
         self.assertIn("клод", speakable("Claude недоступен"))
         self.assertIn("ар-ти-экс", speakable("RTX 4070"))
 
-    def test_name_stress(self):
-        self.assertEqual(speakable("Привет! Я Вега."), "Привет! Я В+ега.")
+    def test_name(self):
+        # Silero ставит ударение сам и не туда — «Аян+ами», как говорят по-русски
+        self.assertEqual(speakable("Привет! Я Аянами."), "Привет! Я Аян+ами.")
+        self.assertEqual(speakable("Ayanami, привет"), "аян+ами, привет")
 
 
 class SayTest(unittest.IsolatedAsyncioTestCase):
@@ -224,8 +226,8 @@ class VoicesTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config.voice_id({"voice": "нет-такого"}), "xenia")
 
     def test_english_kept_english(self):
-        self.assertEqual(speakable("Hi! I'm Vega, 3 tracks.", "piper", "en"), "Hi! I'm Vega, 3 tracks.")
-        self.assertNotIn("+", speakable("Я Вега.", "piper", "ru"))      # русский Piper — без ударений Silero
+        self.assertEqual(speakable("Hi! I'm Ayanami, 3 tracks.", "piper", "en"), "Hi! I'm Ayanami, 3 tracks.")
+        self.assertNotIn("+", speakable("Я Аян+ами.", "piper", "ru"))      # русский Piper — без ударений Silero
 
     async def test_russian_phrase_of_english_voice_goes_to_silero(self):
         v = Voice()

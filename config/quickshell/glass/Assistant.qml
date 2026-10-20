@@ -13,7 +13,7 @@ Singleton {
     id: root
 
     // имя — одно, оно же слово-активатор (assistant/glass_assistant/config.py: NAME)
-    readonly property string name: I18n.t("Вега", "Vega")
+    readonly property string name: I18n.t("Аянами", "Ayanami")
     // голоса — как VOICES в config.py: Silero (свои 5) и Piper; английские отвечают по-английски
     readonly property var voices: [
         { id: "xenia", ru: "Шёлк", en: "Silk", lang: "ru", female: true },
@@ -99,7 +99,7 @@ Singleton {
     function off() {
         if (acfg.enabled) return false;
         heard = ""; answer = "";
-        error = I18n.t("Вега выключена — включить: Настройки → Ассистент", "Vega is off — turn it on in Settings → Assistant");
+        error = I18n.t("Аянами выключена — включить: Настройки → Ассистент", "Ayanami is off — turn it on in Settings → Assistant");
         linger.restart();
         return true;
     }
@@ -144,7 +144,7 @@ Singleton {
     function preview() {
         if (!sock.connected) return;
         const en = voiceInfo(acfg.voice).lang === "en";
-        send({ cmd: "say", preview: true, text: en ? "Hi! I'm Vega. This is how my voice will sound." : "Привет! Я Вега. Так будет звучать мой голос.",
+        send({ cmd: "say", preview: true, text: en ? "Hi! I'm Ayanami. This is how my voice will sound." : "Привет. Я Аянами. Так будет звучать мой голос.",
                voice: acfg.voice, tone: acfg.voiceTone, speed: acfg.voiceSpeed, height: acfg.voiceHeight });
     }
     function reset() { send({ cmd: "reset" }); heard = ""; answer = ""; }
