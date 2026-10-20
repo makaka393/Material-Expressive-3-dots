@@ -51,8 +51,9 @@ class Vad:
     перцентилю громкости за 3 с: в речи между словами есть паузы, а ровный шум их не даёт. Раньше порог
     в таком шуме оставался прежним, всё считалось речью, и фраза не кончалась."""
 
-    def __init__(self):
+    def __init__(self, min_level: float = 450.0):
         self.floor = 300.0
+        self.min_level = min_level        # ниже — не речь, как бы тихо ни было вокруг (ближний микрофон — config.NEAR_MIN)
         self.recent = collections.deque(maxlen=100)
 
     def level(self, frame) -> float:
@@ -64,23 +65,23 @@ class Vad:
             low = float(np.percentile(self.recent, 15))
             if low > self.floor * 1.5:                # шум вырос: тихих кадров по старому порогу не бывает
                 self.floor = 0.8 * self.floor + 0.2 * low
-        loud = rms > max(self.floor * 3.0, 450.0)
+        loud = rms > max(self.floor * 3.0, self.min_level)
         if not loud:                                  # шум считаем по тихим кадрам
             self.floor = 0.97 * self.floor + 0.03 * max(rms, 50.0)
         return loud
 
 
-async def record_utterance(source, on_level, max_wait=6.0, max_len=30.0, tail=2.0, frames=None):
+async def record_utterance(source, on_level, max_wait=6.0, max_len=30.0, tail=2.0, frames=None, min_level=450.0):
     """Ждёт начала речи (до max_wait с) и пишет до паузы tail с (настройка «пауза в конце фразы»: при 0,75 с
     фразу обрывало на раздумье посреди неё). Возвращает int16 или None. frames — кадры вместо микрофона (тесты)."""
     if frames is not None:
-        return await _collect(frames, on_level, max_wait, max_len, tail)
+        return await _collect(frames, on_level, max_wait, max_len, tail, min_level)
     async with Mic(source) as mic:
-        return await _collect(mic.frames(), on_level, max_wait, max_len, tail)
+        return await _collect(mic.frames(), on_level, max_wait, max_len, tail, min_level)
 
 
-async def _collect(frames, on_level, max_wait, max_len, tail):
-    vad = Vad()
+async def _collect(frames, on_level, max_wait, max_len, tail, min_level=450.0):
+    vad = Vad(min_level)
     chunks, started, quiet, n = [], False, 0.0, 0
     pre = []                                          # 300 мс до начала речи — не съесть первый слог
     async for frame in frames:

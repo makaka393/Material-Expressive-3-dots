@@ -150,6 +150,17 @@ class InstalledTest(unittest.TestCase):
 
     def test_far_mic(self):
         from glass_assistant import config
-        self.assertEqual(config.mic(config.DEFAULTS), "glass_vega_mic")
+        self.assertEqual(config.mic(config.DEFAULTS, aod=True), "glass_vega_mic")
+        self.assertEqual(config.mic({**config.DEFAULTS, "near_mic": False}), "glass_vega_mic")
         self.assertEqual(config.mic({**config.DEFAULTS, "far_mic": False, "mic": "x"}), "x")
+        self.assertEqual(config.mic({**config.DEFAULTS, "far_mic": False, "mic": "x"}, aod=True), "x")
+
+    def test_near_mic_by_default(self):
+        # за столом — ближний источник без автоусиления и высокий порог: дальние голоса не слышит;
+        # в AOD (от компьютера отошли) — дальний, как раньше
+        from glass_assistant import config
+        self.assertEqual(config.mic(config.DEFAULTS), "glass_vega_near")
+        self.assertEqual(config.speech_min(config.DEFAULTS), config.NEAR_MIN)
+        self.assertEqual(config.speech_min(config.DEFAULTS, aod=True), 450.0)
+        self.assertEqual(config.speech_min({**config.DEFAULTS, "far_mic": False}), 450.0)
 

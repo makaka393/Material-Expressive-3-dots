@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from glass_assistant import config
-from glass_assistant.stt import FRAME, RATE, record_utterance
+from glass_assistant.stt import FRAME, RATE, Vad, record_utterance
 
 
 def frames(spec):
@@ -59,3 +59,15 @@ class RecordTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VadMinTest(unittest.TestCase):
+    def test_min_level_cuts_far_voice(self):
+        # ближний режим: голос из другого конца комнаты (700) — не речь, у микрофона (1500) — речь
+        default, near = Vad(), Vad(min_level=config.NEAR_MIN)
+        for _ in range(60):
+            default.speech(30.0)
+            near.speech(30.0)
+        self.assertTrue(default.speech(700.0))
+        self.assertFalse(near.speech(700.0))
+        self.assertTrue(near.speech(config.NEAR_MIN + 600))

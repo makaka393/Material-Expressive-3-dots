@@ -49,6 +49,17 @@ Singleton {
         path: root.sockPath
         connected: true
         parser: SplitParser { onRead: line => root.handle(line) }
+        // служба (пере)запустилась — сразу сказать ей, в AOD ли мы
+        onConnectedChanged: if (connected) root.tellAod()
+    }
+    // AOD — от компьютера отошли: служба слушает дальним микрофоном (с автоусилением), а за столом — ближним,
+    // который не слышит разговоры и музыку вокруг
+    readonly property bool aod: Config.aodScreen !== ""
+    onAodChanged: tellAod()
+    function tellAod() {
+        if (!sock.connected) return;
+        sock.write(JSON.stringify({ cmd: "aod", on: aod }) + "\n");
+        sock.flush();
     }
     // служба перезапустилась или ещё не запущена — переподключаемся
     Timer {

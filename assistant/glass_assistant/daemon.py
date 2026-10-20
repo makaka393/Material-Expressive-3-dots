@@ -7,6 +7,7 @@
   {"cmd": "ask", "text": "...", "speak": false, "to": "claude"}   вопрос текстом (лаунчер); to — сразу в Claude
   {"cmd": "listen", "to": "claude"}              выслушать вопрос голосом и ответить голосом; второй раз — стоп
   {"cmd": "warm"} | {"cmd": "unload"}            загрузить локальную модель заранее | выгрузить
+  {"cmd": "aod", "on": true}                     оболочка в AOD (отошли от компьютера) — слушать дальним микрофоном
 Игровой режим (games.py) — не командой, а по метке $XDG_RUNTIME_DIR/glass-game: её ставит оболочка.
   {"cmd": "stop"}                                прервать: слушание, ответ, озвучку
   {"cmd": "say", "text": "...", "preview": true, "voice": "baya", "tone": 0.5, "speed": 1.1, "height": 0}
@@ -81,6 +82,7 @@ class Daemon:
         self.wake_task = None
         self.paused = []                 # плееры, которые она поставила на паузу при вызове — после разговора снова
         self.media_touched = False       # в разговоре просили что-то с музыкой — сами не возобновляем
+        self.aod = False                 # оболочка в AOD — от компьютера отошли: слушаем дальним микрофоном
 
     # ── события
     async def emit(self, ev, **kw):
@@ -131,8 +133,9 @@ class Daemon:
             asyncio.create_task(self.local.warm(cfg))             # и локальная модель
         level = self.level
         pause = float(cfg.get("pause") or 2.0)
-        audio = await (record_utterance(config.mic(cfg), level, max_wait=FOLLOW_WAIT, tail=pause) if depth
-                       else record_utterance(config.mic(cfg), level, tail=pause))
+        src, low = config.mic(cfg, self.aod), config.speech_min(cfg, self.aod)
+        audio = await (record_utterance(src, level, max_wait=FOLLOW_WAIT, tail=pause, min_level=low) if depth
+                       else record_utterance(src, level, tail=pause, min_level=low))
         if audio is None:
             warm.cancel()
             return
@@ -258,8 +261,9 @@ class Daemon:
                 await asyncio.sleep(0.3)
                 continue
             try:
-                async with Mic(config.mic(cfg)) as mic:
-                    await self.wake_listen(cfg, mic.frames())
+                src = config.mic(cfg, self.aod)
+                async with Mic(src) as mic:
+                    await self.wake_listen(cfg, mic.frames(), src)
             except asyncio.CancelledError:
                 raise
             except Exception as e:
@@ -280,7 +284,7 @@ class Daemon:
             return self.voice.said_recently(own, 20)
         return time.monotonic() - self.voice.idle_at < 2.0 and self.voice.said_recently(own, 30)
 
-    async def wake_listen(self, cfg, frames):
+    async def wake_listen(self, cfg, frames, source=None):
         """Ждёт имя в потоке кадров. Микрофон не закрывается, пока Whisper разбирает кусочек: кадры копятся
         в очереди, ни слова не теряется. Раньше кусочек кончался только после «паузы в конце фразы» (до 3 с)
         и микрофон на это время закрывался — имя терялось или ответ приходил через несколько секунд."""
@@ -294,16 +298,17 @@ class Daemon:
                 await queue.put(None)
         reader = asyncio.create_task(pump())
         words = config.wake_words(cfg)
-        vad = Vad()
-        pre, seg, n, talking_for, quiet = [], [], 0, 0.0, 0.0
+        vad = Vad(config.speech_min(cfg, self.aod))
+        pre, seg, n, talking_for, quiet, peak = [], [], 0, 0.0, 0.0, 0.0
         ring = collections.deque(maxlen=int(BARGE_WIN * RATE / FRAME))
         since, loud = 0, False
         try:
             while (f := await queue.get()) is not None:
                 n += 1
-                if n % 10 == 0 and self._wake_paused():
-                    return
-                talking = vad.speech(vad.level(f))
+                if n % 10 == 0 and (self._wake_paused() or source is not None and config.mic(cfg, self.aod) != source):
+                    return                                  # AOD включился или кончился — переоткрыть другой источник
+                rms = vad.level(f)
+                talking = vad.speech(rms)
                 if n < 10:                                  # первые 300 мс — только шум комнаты
                     continue
                 ring.append(f)
@@ -327,9 +332,10 @@ class Daemon:
                 if not seg:
                     pre = (pre + [f])[-10:]                 # 300 мс до начала речи — не съесть первый слог
                     if talking:
-                        seg, talking_for, quiet = pre[:], FRAME / RATE, 0.0
+                        seg, talking_for, quiet, peak = pre[:], FRAME / RATE, 0.0, rms
                     continue
                 seg.append(f)
+                peak = max(peak, rms)
                 talking_for += FRAME / RATE if talking else 0
                 quiet = 0.0 if talking else quiet + FRAME / RATE
                 if quiet < WAKE_GAP and len(seg) * FRAME / RATE < WAKE_MAX:
@@ -342,10 +348,11 @@ class Daemon:
                 rest = after_wake(text, words)
                 if rest is None:
                     if hint := near_name(text, words):
-                        print(f"wake: похоже на имя, но не оно: «{hint}»", flush=True)
+                        print(f"wake: похоже на имя, но не оно: «{hint}» (громкость {peak:.0f})", flush=True)
                     continue
                 if self._echo(words, barge=False):
                     continue
+                print(f"wake: громкость имени {peak:.0f} ({source or 'микрофон'})", flush=True)   # подбирать NEAR_MIN
                 if self._wake_paused():
                     return
                 if self.busy() or not self.voice.idle.is_set():
@@ -541,6 +548,9 @@ class Daemon:
         elif cmd == "warm":
             if not games.playing:
                 asyncio.create_task(self.local.warm(cfg))
+        elif cmd == "aod":
+            self.aod = bool(msg.get("on"))
+            print("AOD: дальний микрофон" if self.aod else "AOD кончился: ближний микрофон", flush=True)
         elif cmd == "unload":
             await self.local.unload()
         elif cmd == "stop":

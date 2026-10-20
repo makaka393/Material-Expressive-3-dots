@@ -239,6 +239,14 @@ class DaemonTest(unittest.IsolatedAsyncioTestCase):
         await self.d.level(0.2)
         self.assertEqual(self.ev("level"), [{"v": 0.457, "b": [0.1, 0.2, 0.3, 0.4]}, {"v": 0.2}])
 
+    async def test_aod_switches_to_far_mic(self):
+        # оболочка сообщает об AOD: от компьютера отошли — слушать дальним микрофоном
+        self.assertFalse(self.d.aod)
+        await self.d.command({"cmd": "aod", "on": True})
+        self.assertTrue(self.d.aod)
+        await self.d.command({"cmd": "aod", "on": False})
+        self.assertFalse(self.d.aod)
+
     async def test_warm_unload_commands(self):
         await self.d.command({"cmd": "warm"})
         await self.d.command({"cmd": "unload"})
